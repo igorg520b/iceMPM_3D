@@ -28,7 +28,7 @@ struct icy::SimParams3D
 {
 public:
     constexpr static double pi = 3.14159265358979323846;
-    constexpr static int dim = 3;
+    constexpr static real dim = 3;
     constexpr static int nGridArrays = 4;   // vx, vy, vz, m
 
     // index of the corresponding array in SoA
@@ -50,7 +50,7 @@ public:
     int tpb_P2G, tpb_Upd, tpb_G2P;  // threads per block for each operation
 
     int PointsWanted, nPts;
-    int GridX, GridY, GridZ;
+    int GridX, GridY, GridZ, GridTotal;
     real GridXDimension;
 
     real InitialTimeStep, SimulationEndTime;

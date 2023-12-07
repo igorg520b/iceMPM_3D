@@ -11,8 +11,9 @@ void icy::SimParams::Reset()
     InitialTimeStep = 3.e-5;
     YoungsModulus = 5.e8;
     PointsWanted = 50'000;
-    GridX = 128;
-    GridY = 55;
+    GridX = 256;
+    GridY = 110;
+    GridZ = 140;
     ParticleViewSize = 2.5f;
     GridXDimension = 3.33;
 
@@ -119,6 +120,7 @@ void icy::SimParams::ComputeHelperVariables()
     cellsize_inv = 1./cellsize;
     Dp_inv = 4./(cellsize*cellsize);
     IndRSq = IndDiameter*IndDiameter/4.;
+    GridTotal = GridX*GridY*GridZ;
 }
 
 void icy::SimParams::ComputeCamClayParams2()

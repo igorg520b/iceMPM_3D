@@ -160,41 +160,154 @@ void GPU_Implementation4::cuda_p2g()
     if(err != cudaSuccess) throw std::runtime_error("cuda_p2g");
 }
 
-void GPU_Implementation3::cuda_update_nodes(real indenter_x, real indenter_y)
+void GPU_Implementation4::cuda_update_nodes(real indenter_x, real indenter_y)
 {
-    const int nGridNodes = prms->GridX*prms->GridY;
-    cudaError_t err;
-    int tpb = prms->tpb_Upd;
+    const int nGridNodes = model->prms.GridTotal;
+    int tpb = model->prms.tpb_Upd;
     int blocksPerGrid = (nGridNodes + tpb - 1) / tpb;
-    v2_kernel_update_nodes<<<blocksPerGrid, tpb, 0, streamCompute>>>(indenter_x, indenter_y);
-    err = cudaGetLastError();
-    if(err != cudaSuccess)
-    {
-        std::cout << "cuda_update_nodes\n";
-        throw std::runtime_error("cuda_update_nodes");
-    }
+    kernel_update_nodes<<<blocksPerGrid, tpb, 0, streamCompute>>>(indenter_x, indenter_y);
+    cudaError_t err = cudaGetLastError();
+    if(err != cudaSuccess) throw std::runtime_error("cuda_update_nodes");
 }
 
-void GPU_Implementation3::cuda_g2p()
+void GPU_Implementation4::cuda_g2p()
 {
-    const int nPoints = prms->nPts;
-    cudaError_t err;
-    int tpb = prms->tpb_G2P;
+    const int nPoints = model->prms.nPts;
+    int tpb = model->prms.tpb_G2P;
     int blocksPerGrid = (nPoints + tpb - 1) / tpb;
-    v2_kernel_g2p<<<blocksPerGrid, tpb, 0, streamCompute>>>();
-    err = cudaGetLastError();
-    if(err != cudaSuccess)
+    kernel_g2p<<<blocksPerGrid, tpb, 0, streamCompute>>>();
+    cudaError_t err = cudaGetLastError();
+    if(err != cudaSuccess) throw std::runtime_error("cuda_g2p");
+}
+
+
+// ============================== functions ====================================
+
+__forceinline__ __device__ Matrix3r dev(Matrix3r A)
+{
+    return A - A.trace()/3*Matrix3r::Identity();
+}
+
+__forceinline__ __device__ void svd3x3(const Matrix3r &A, Matrix3r &_U, Matrix3r &_S, Matrix3r &_V)
+{
+    double U[9] = {};
+    double S[3] = {};
+    double V[9] = {};
+    svd(A(0,0), A(1,0), A(2,0), A(0,1), A(1,1), A(2,1), A(0,2), A(1,2), A(2,2),     //F[0], F[3], F[6], F[1], F[4], F[7], F[2], F[5], F[8],
+              U[0], U[3], U[6], U[1], U[4], U[7], U[2], U[5], U[8],
+              S[0], S[1], S[2],
+              V[0], V[3], V[6], V[1], V[4], V[7], V[2], V[5], V[8]);
+    U << U[0], U[1], U[2], U[3], U[4], U[5], U[6], U[7], U[8];
+    S << S[0], 0, 0,
+        0, S[1], 0,
+        0, 0, S[2];
+    V << V[0], V[1], V[2], V[3], V[4], V[5], V[6], V[7], V[8];
+}
+
+
+__forceinline__ __device__ Matrix3r KirchhoffStress_Wolper(const Matrix3r &F)
+{
+    const real &kappa = gprms.kappa;
+    const real &mu = gprms.mu;
+    const real &dim = icy::SimParams3D::dim;
+
+    // Kirchhoff stress as per Wolper (2019)
+    real Je = F.determinant();
+    Matrix3r b = F*F.transpose();
+    Matrix3r PFt = mu*pow(Je, -2./dim)*dev(b) + kappa*(Je*Je-1.)*Matrix3r::Identity();
+    return PFt;
+}
+
+__forceinline__ __device__ void Wolper_Drucker_Prager(icy::Point &p)
+{
+    const Matrix3r &gradV = p.Bp;
+    const real &mu = gprms.mu;
+    const real &kappa = gprms.kappa;
+    const real &dt = gprms.InitialTimeStep;
+    const real &tan_phi = gprms.DP_tan_phi;
+    constexpr real d = 3;
+
+    Matrix3r FeTr = (Matrix3r::Identity() + dt*gradV) * p.Fe;
+    Matrix3r U, V, Sigma;
+    svd3x3(FeTr, U, Sigma, V);
+
+    real Je_tr = Sigma(0,0)*Sigma(1,1)*Sigma(2,2);
+    real Je_tr_sq = Je_tr*Je_tr;
+    Matrix3r SigmaSquared = Sigma*Sigma;
+    Matrix3r s_hat_tr = mu * rcbrt(Je_tr_sq) * dev(SigmaSquared);  //  pow(Je_tr, -2./d)
+    real p_trial = -(kappa/2.)*(Je_tr_sq - 1);
+
+    if(p_trial < 0 || p.Jp_inv < 1)
     {
-        std::cout << "cuda_g2p error " << err << '\n';
-        throw std::runtime_error("cuda_g2p");
+        p.q = 1;
+//        if(p_trial < 1)  p.q = 1;
+//        else if(p.Jp_inv < 1) p.q = 2;
+
+        // tear in tension or compress until original state
+        real p_new = 0;
+        real Je_new = sqrt(-2.*p_new/kappa + 1.);
+        Matrix3r Sigma_new = Matrix3r::Identity() * cbrt(Je_new); //  Matrix3r::Identity()*pow(Je_new, 1./(real)d);
+        p.Fe = U*Sigma_new*V.transpose();
+        p.Jp_inv *= Je_new/Je_tr;
+    }
+    else
+    {
+        constexpr real coeff1 = 1.2247448713915890; // sqrt((6-d)/2.);
+        real q_tr = coeff1*s_hat_tr.norm();
+        real q_n_1 = p_trial*tan_phi;
+        q_n_1 = min(gprms.IceShearStrength, q_n_1);
+
+        if(q_tr < q_n_1)
+        {
+            // elastic regime
+            p.Fe = FeTr;
+            p.q = 4;
+        }
+        else
+        {
+            // project onto YS
+            real s_hat_n_1_norm = q_n_1/coeff1;
+            Matrix3r B_hat_E_new = (s_hat_n_1_norm*cbrt(Je_tr_sq)/mu)*s_hat_tr.normalized() + Matrix3r::Identity()*(SigmaSquared.trace()/d);
+            Matrix3r Sigma_new;
+            Sigma_new << sqrt(B_hat_E_new(0,0)), 0, 0,
+                0, sqrt(B_hat_E_new(1,1)), 0,
+                0, 0, sqrt(B_hat_E_new(2,2));
+            p.Fe = U*Sigma_new*V.transpose();
+            p.q = 3;
+        }
     }
 }
 
 
+__forceinline__ __device__ void NACCUpdateDeformationGradient_trimmed(icy::Point &p)
+{
+    const Matrix2r &gradV = p.Bp;
+    constexpr real d = 2; // dimensions
+    const real &mu = gprms.mu;
+    const real &kappa = gprms.kappa;
+    const real &beta = gprms.NACC_beta;
+    const real &dt = gprms.InitialTimeStep;
+
+    Matrix2r FeTr = (Matrix2r::Identity() + dt*gradV) * p.Fe;
+    p.Fe = FeTr;
+    Matrix2r U, V, Sigma;
+    svd2x2(FeTr, U, Sigma, V);
+
+    real Je_tr = Sigma(0,0)*Sigma(1,1);    // this is for 2D
+    real p_trial = -(kappa/2.) * (Je_tr*Je_tr - 1.);
+
+    const real &p0 = gprms.IceCompressiveStrength;
+
+    Matrix2r SigmaSquared = Sigma*Sigma;
+    Matrix2r s_hat_tr = mu/Je_tr * dev(SigmaSquared); //mu * pow(Je_tr, -2. / (real)d)* dev(SigmaSquared);
+    const real &M_sq = gprms.NACC_Msq;
+    real y = (1.+2.*beta)*(3.-d/2.)*s_hat_tr.squaredNorm() + M_sq*(p_trial + beta*p0)*(p_trial - p0);
+    if(y > 0) p.q = 3;
+}
 
 // ==============================  kernels  ====================================
 
-__global__ void v2_kernel_p2g()
+__global__ void kernel_p2g()
 {
     int pt_idx = blockIdx.x * blockDim.x + threadIdx.x;
     const int &nPoints = gprms.nPts;
@@ -434,10 +547,6 @@ __global__ void v2_kernel_g2p()
 
 
 
-__device__ Matrix2r dev(Matrix2r A)
-{
-    return A - A.trace()/2*Matrix2r::Identity();
-}
 
 
 
