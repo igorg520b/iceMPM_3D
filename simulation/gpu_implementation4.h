@@ -14,14 +14,12 @@ __global__ void kernel_g2p();
 __global__ void kernel_update_nodes(real indenter_x, real indenter_y);
 
 __forceinline__ __device__ void Wolper_Drucker_Prager(icy::Point3D &p);
-__forceinline__ __device__ void NACCUpdateDeformationGradient_trimmed(icy::Point3D &p);
+__forceinline__ __device__ void CheckIfPointIsInsideFailureSurface(icy::Point3D &p);
 __forceinline__ __device__ Matrix3r KirchhoffStress_Wolper(const Matrix3r &F);
 __forceinline__ __device__ Matrix3r dev(Matrix3r A);
 
 __forceinline__ __device__ void svd3x3(const Matrix3r &A, Matrix3r &U, Matrix3r &S, Matrix3r &V);
-
-//__device__ Matrix2r polar_decomp_R(const Matrix2r &val);
-//__device__ void svd(const real a[4], real u[4], real sigma[2], real v[4]);
+__global__ void kernel_hello();
 
 
 namespace icy { class Model3D; }

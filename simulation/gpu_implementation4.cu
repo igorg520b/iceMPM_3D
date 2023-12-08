@@ -279,28 +279,27 @@ __forceinline__ __device__ void Wolper_Drucker_Prager(icy::Point &p)
 }
 
 
-__forceinline__ __device__ void NACCUpdateDeformationGradient_trimmed(icy::Point &p)
+__forceinline__ __device__ void CheckIfPointIsInsideFailureSurface(icy::Point &p)
 {
-    const Matrix2r &gradV = p.Bp;
-    constexpr real d = 2; // dimensions
+    const Matrix3r &gradV = p.Bp;
     const real &mu = gprms.mu;
     const real &kappa = gprms.kappa;
     const real &beta = gprms.NACC_beta;
     const real &dt = gprms.InitialTimeStep;
+    const real &p0 = gprms.IceCompressiveStrength;
+    const real &M_sq = gprms.NACC_Msq;
+    constexpr real d = 3; // dimension
 
-    Matrix2r FeTr = (Matrix2r::Identity() + dt*gradV) * p.Fe;
+    Matrix3r FeTr = (Matrix2r::Identity() + dt*gradV) * p.Fe;
     p.Fe = FeTr;
-    Matrix2r U, V, Sigma;
-    svd2x2(FeTr, U, Sigma, V);
+    Matrix3r U, V, Sigma;
+    svd3x3(FeTr, U, Sigma, V);
 
-    real Je_tr = Sigma(0,0)*Sigma(1,1);    // this is for 2D
+    real Je_tr = Sigma(0,0)*Sigma(1,1)*Sigma(2,2);
     real p_trial = -(kappa/2.) * (Je_tr*Je_tr - 1.);
 
-    const real &p0 = gprms.IceCompressiveStrength;
-
-    Matrix2r SigmaSquared = Sigma*Sigma;
-    Matrix2r s_hat_tr = mu/Je_tr * dev(SigmaSquared); //mu * pow(Je_tr, -2. / (real)d)* dev(SigmaSquared);
-    const real &M_sq = gprms.NACC_Msq;
+    Matrix3r SigmaSquared = Sigma*Sigma;
+    Matrix3r s_hat_tr = mu * rcbrt(Je_tr_sq) * dev(SigmaSquared);
     real y = (1.+2.*beta)*(3.-d/2.)*s_hat_tr.squaredNorm() + M_sq*(p_trial + beta*p0)*(p_trial - p0);
     if(y > 0) p.q = 3;
 }
@@ -320,57 +319,65 @@ __global__ void kernel_p2g()
     const real &Dinv = gprms.Dp_inv;
     const int &gridX = gprms.GridX;
     const int &gridY = gprms.GridY;
+    const int &gridZ = gprms.GridZ;
     const real &particle_mass = gprms.ParticleMass;
     const int &nGridPitch = gprms.nGridPitch;
     const int &nPtsPitch = gprms.nPtsPitch;
 
     // pull point data from SOA
-    const real *data = gprms.pts_array;
-    Vector2r pos(data[pt_idx + nPtsPitch*icy::SimParams::posx], data[pt_idx + nPtsPitch*icy::SimParams::posy]);
-    Vector2r velocity(data[pt_idx + nPtsPitch*icy::SimParams::velx], data[pt_idx + nPtsPitch*icy::SimParams::vely]);
-    Matrix2r Bp, Fe;
-    Bp << data[pt_idx + nPtsPitch*icy::SimParams::Bp00], data[pt_idx + nPtsPitch*icy::SimParams::Bp01],
-        data[pt_idx + nPtsPitch*icy::SimParams::Bp10], data[pt_idx + nPtsPitch*icy::SimParams::Bp11];
-    Fe << data[pt_idx + nPtsPitch*icy::SimParams::Fe00], data[pt_idx + nPtsPitch*icy::SimParams::Fe01],
-        data[pt_idx + nPtsPitch*icy::SimParams::Fe10], data[pt_idx + nPtsPitch*icy::SimParams::Fe11];
-    // real Jp_inv =        data[pt_idx + nPtsPitch*icy::SimParams::idx_Jp];
-    // real zeta =          data[pt_idx + nPtsPitch*icy::SimParams::idx_zeta];
+    const real *buffer = gprms.pts_array;
+    Vector3r pos, velocity;
+    Matrix3r Bp, Fe;
 
+    for(int i=0; i<3; i++)
+    {
+        pos[i] = buffer[pt_idx + pitch*(icy::SimParams3D::posx+i)];
+        velocity[i] = buffer[pt_idx + pitch*(icy::SimParams3D::velx+i)];
+        for(int j=0; i<3; j++)
+        {
+            Fe(i,j) = buffer[pt_idx + pitch*(icy::SimParams3D::Fe00 + i*3 + j)];
+            Bp(i,j) = buffer[pt_idx + pitch*(icy::SimParams3D::Bp00 + i*3 + j)];
+        }
+    }
 
-    Matrix2r PFt = KirchhoffStress_Wolper(Fe);
-    Matrix2r subterm2 = particle_mass*Bp - (dt*vol*Dinv)*PFt;
+    char* ptr_intact = buffer[pitch*icy::SimParams3D::idx_intact];
+    q = ptr_intact[pt_idx];
+    Jp_inv = buffer[pt_idx + pitch*icy::SimParams3D::idx_Jp_inv];
+
+    Matrix3r PFt = KirchhoffStress_Wolper(Fe);
+    Matrix3r subterm2 = particle_mass*Bp - (dt*vol*Dinv)*PFt;
 
     constexpr real offset = 0.5;  // 0 for cubic; 0.5 for quadratic
     const int i0 = (int)(pos[0]*h_inv - offset);
     const int j0 = (int)(pos[1]*h_inv - offset);
+    const int k0 = (int)(pos[2]*h_inv - offset);
 
-    Vector2r base_coord(i0,j0);
-    Vector2r fx = pos*h_inv - base_coord;
+    Vector3r base_coord(i0,j0,k0);
+    Vector3r f = pos*h_inv - base_coord;
 
-    real v0[2] {1.5-fx[0], 1.5-fx[1]};
-    real v1[2] {fx[0]-1.,  fx[1]-1.};
-    real v2[2] {fx[0]-.5,  fx[1]-.5};
+    Array3r arr_v0 = 1.5-f.array();
+    Array3r arr_v1 = f.array() - 1.0;
+    Array3r arr_v2 = f.array() - 0.5;
+    Array3r ww[3] = {0.5*arr_v0*arr_v0, 0.75-arr_v1*arr_v1, 0.5*arr_v2*arr_v2};
 
-    real w[3][2] = {{.5*v0[0]*v0[0],  .5*v0[1]*v0[1]},
-                    {.75-v1[0]*v1[0], .75-v1[1]*v1[1]},
-                    {.5*v2[0]*v2[0],  .5*v2[1]*v2[1]}};
+    for (int i=0; i<3; i++)
+        for (int j=0; j<3; j++)
+            for (int k=0; k<3;k++)
+            {
+                real Wip = ww[i][0]*ww[j][1]*ww[k][2];
+                Vector3r dpos((i-f[0])*h, (j-f[1])*h, (k-f[2])*h);
+                Vector3r incV = Wip*(velocity*particle_mass + subterm2*dpos);
+                real incM = Wip*particle_mass;
 
-    for (int i = 0; i < 3; i++)
-        for (int j = 0; j < 3; j++)
-        {
-            real Wip = w[i][0]*w[j][1];
-            Vector2r dpos((i-fx[0])*h, (j-fx[1])*h);
-            Vector2r incV = Wip*(velocity*particle_mass + subterm2*dpos);
-            real incM = Wip*particle_mass;
+                int idx_gridnode = (i+i0) + (j+j0)*gridX + (k+k0)*gridX*gridY;
+                if((i+i0) < 0 || (j+j0) < 0 || (i+i0) >=gridX || (j+j0)>=gridY || (k+k0) < 0 || (k+k0)>=gridZ)
+                    gpu_error_indicator = 1;
 
-            int idx_gridnode = (i+i0) + (j+j0)*gridX;
-            if((i+i0) < 0 || (j+j0) < 0 || (i+i0) >=gridX || (j+j0)>=gridY) gpu_error_indicator = 1;
-
-            // Udpate mass, velocity and force
-            atomicAdd(&gprms.grid_array[0*nGridPitch + idx_gridnode], incM);
-            atomicAdd(&gprms.grid_array[1*nGridPitch + idx_gridnode], incV[0]);
-            atomicAdd(&gprms.grid_array[2*nGridPitch + idx_gridnode], incV[1]);
-        }
+                // Udpate mass, velocity and force
+                atomicAdd(&gprms.grid_array[0*nGridPitch + idx_gridnode], incM);
+                for(int idx=0;idx<3;idx++)
+                    atomicAdd(&gprms.grid_array[(1+idx)*nGridPitch + idx_gridnode], incV[idx]);
+            }
 }
 
 __global__ void v2_kernel_update_nodes(real indenter_x, real indenter_y)
@@ -460,52 +467,52 @@ __global__ void v2_kernel_g2p()
     const int &nPoints = gprms.nPts;
     if(pt_idx >= nPoints) return;
 
-    const int &nPtsPitched = gprms.nPtsPitch;
-    const int &nGridPitched = gprms.nGridPitch;
+    const int &pitch_pts = gprms.nPtsPitch;
+    const int &pitch_grid = gprms.nGridPitch;
     const real &h_inv = gprms.cellsize_inv;
     const real &dt = gprms.InitialTimeStep;
     const int &gridX = gprms.GridX;
 
     icy::Point p;
-    p.pos[0] =      gprms.pts_array[pt_idx + nPtsPitched*icy::SimParams::posx];
-    p.pos[1] =      gprms.pts_array[pt_idx + nPtsPitched*icy::SimParams::posy];
-    p.Fe(0,0) =     gprms.pts_array[pt_idx + nPtsPitched*icy::SimParams::Fe00];
-    p.Fe(0,1) =     gprms.pts_array[pt_idx + nPtsPitched*icy::SimParams::Fe01];
-    p.Fe(1,0) =     gprms.pts_array[pt_idx + nPtsPitched*icy::SimParams::Fe10];
-    p.Fe(1,1) =     gprms.pts_array[pt_idx + nPtsPitched*icy::SimParams::Fe11];
-    p.Jp_inv =      gprms.pts_array[pt_idx + nPtsPitched*icy::SimParams::idx_Jp];
-//    p.zeta =        gprms.pts_array[pt_idx + nPtsPitched*icy::SimParams::idx_zeta];
-    char* pq_ptr = (char*)&gprms.pts_array[nPtsPitched*icy::SimParams::idx_case];
-    p.q =           pq_ptr[pt_idx];
-
     p.velocity.setZero();
     p.Bp.setZero();
 
+    const real *buffer = gprms.pts_array;
+
+    for(int i=0; i<3; i++)
+    {
+        p.pos[i] = buffer[pt_idx + pitch_pts*(icy::SimParams3D::posx+i)];
+        for(int j=0; i<3; j++)
+            Fe(i,j) = buffer[pt_idx + pitch_pts*(icy::SimParams3D::Fe00 + i*3 + j)];
+    }
+
+    char* ptr_intact = buffer[pitch_pts*icy::SimParams3D::idx_intact];
+    p.q = ptr_intact[pt_idx];
+    p.Jp_inv = buffer[pt_idx + pitch_pts*icy::SimParams3D::idx_Jp_inv];
+
     constexpr real offset = 0.5;  // 0 for cubic; 0.5 for quadratic
-    const int i0 = (int)(p.pos[0]*h_inv - offset);
-    const int j0 = (int)(p.pos[1]*h_inv - offset);
+    const int i0 = (int)(pos[0]*h_inv - offset);
+    const int j0 = (int)(pos[1]*h_inv - offset);
+    const int k0 = (int)(pos[2]*h_inv - offset);
 
-    Vector2r base_coord(i0,j0);
-    Vector2r fx = p.pos*h_inv - base_coord;
+    Vector3r base_coord(i0,j0,k0);
+    Vector3r f = pos*h_inv - base_coord;
 
-    real v0[2] {1.5-fx[0], 1.5-fx[1]};
-    real v1[2] {fx[0]-1.,  fx[1]-1.};
-    real v2[2] {fx[0]-.5,  fx[1]-.5};
+    Array3r arr_v0 = 1.5-f.array();
+    Array3r arr_v1 = f.array() - 1.0;
+    Array3r arr_v2 = f.array() - 0.5;
+    Array3r ww[3] = {0.5*arr_v0*arr_v0, 0.75-arr_v1*arr_v1, 0.5*arr_v2*arr_v2};
 
-    real w[3][2] = {{.5*v0[0]*v0[0],  .5*v0[1]*v0[1]},
-                    {.75-v1[0]*v1[0], .75-v1[1]*v1[1]},
-                    {.5*v2[0]*v2[0],  .5*v2[1]*v2[1]}};
-
-    for (int i = 0; i < 3; i++)
-        for (int j = 0; j < 3; j++)
+    for (int i=0; i<3; i++)
+        for (int j=0; j<3; j++)
+            for (int k=0; k<3;k++)
         {
-            Vector2r dpos = Vector2r(i, j) - fx;
-            real weight = w[i][0]*w[j][1];
+            Vector3r dpos(i-f[0], j-f[1],k-f[2]);  // note the absence of multiplicaiton by h
+            real weight = ww[i][0]*ww[j][1]*ww[k][2];
 
-            int idx_gridnode = i+i0 + (j+j0)*gridX;
-            Vector2r node_velocity;
-            node_velocity[0] = gprms.grid_array[1*nGridPitched + idx_gridnode];
-            node_velocity[1] = gprms.grid_array[2*nGridPitched + idx_gridnode];
+            int idx_gridnode = (i+i0) + (j+j0)*gridX + (k+k0)*gridX*gridY;
+            Vector3r node_velocity;
+            for(int idx=0;idx<3;idx++) node_velocity[idx] = gprms.grid_array[(idx+1)*pitch_grid + idx_gridnode];
             p.velocity += weight * node_velocity;
             p.Bp += (4.*h_inv)*weight *(node_velocity*dpos.transpose());
         }
@@ -513,84 +520,27 @@ __global__ void v2_kernel_g2p()
     // Advection
     p.pos += dt * p.velocity;
 
-    if(p.q == 0) NACCUpdateDeformationGradient_trimmed(p);
+    if(p.q == 0) CheckIfPointIsInsideFailureSurface(p);
     else Wolper_Drucker_Prager(p);
 
-    gprms.pts_array[icy::SimParams::posx*nPtsPitched + pt_idx] = p.pos[0];
-    gprms.pts_array[icy::SimParams::posy*nPtsPitched + pt_idx] = p.pos[1];
-    gprms.pts_array[icy::SimParams::velx*nPtsPitched + pt_idx] = p.velocity[0];
-    gprms.pts_array[icy::SimParams::vely*nPtsPitched + pt_idx] = p.velocity[1];
-    gprms.pts_array[icy::SimParams::Bp00*nPtsPitched + pt_idx] = p.Bp(0,0);
-    gprms.pts_array[icy::SimParams::Bp01*nPtsPitched + pt_idx] = p.Bp(0,1);
-    gprms.pts_array[icy::SimParams::Bp10*nPtsPitched + pt_idx] = p.Bp(1,0);
-    gprms.pts_array[icy::SimParams::Bp11*nPtsPitched + pt_idx] = p.Bp(1,1);
-    gprms.pts_array[icy::SimParams::Fe00*nPtsPitched + pt_idx] = p.Fe(0,0);
-    gprms.pts_array[icy::SimParams::Fe01*nPtsPitched + pt_idx] = p.Fe(0,1);
-    gprms.pts_array[icy::SimParams::Fe10*nPtsPitched + pt_idx] = p.Fe(1,0);
-    gprms.pts_array[icy::SimParams::Fe11*nPtsPitched + pt_idx] = p.Fe(1,1);
+    // distribute the values of p back into GPU memory: pos, velocity, BP, Fe, Jp_inv, q
+    ptr_intact[pt_idx] = p.q;
+    buffer[pt_idx + pitch*icy::SimParams3D::idx_Jp_inv] = p.Jp_inv;
 
-    gprms.pts_array[icy::SimParams::idx_Jp*nPtsPitched + pt_idx] = p.Jp_inv;
-//    gprms.pts_array[icy::SimParams::idx_zeta*nPtsPitched + pt_idx] = p.zeta;
-
-    // visualized variables
-//    gprms.pts_array[icy::SimParams::idx_p*nPtsPitched + pt_idx] = p.visualize_p;
-//    gprms.pts_array[icy::SimParams::idx_p0*nPtsPitched + pt_idx] = p.visualize_p0;
-//    gprms.pts_array[icy::SimParams::idx_q*nPtsPitched + pt_idx] = p.visualize_q;
-//    gprms.pts_array[icy::SimParams::idx_psi*nPtsPitched + pt_idx] = p.visualize_psi;
-//    gprms.pts_array[icy::SimParams::idx_case*nPtsPitched + pt_idx] = p.q;
-//    gprms.pts_array[icy::SimParams::idx_q_limit*nPtsPitched + pt_idx] = p.visualize_q_limit;
-
-    pq_ptr[pt_idx] = p.q;
+    for(int i=0; i<3; i++)
+    {
+        buffer[pt_idx + pitch*(icy::SimParams3D::posx+i)] = p.pos[i];
+        buffer[pt_idx + pitch*(icy::SimParams3D::velx+i)] = p.velocity[i];
+        for(int j=0; i<3; j++)
+        {
+            buffer[pt_idx + pitch*(icy::SimParams3D::Fe00 + i*3 + j)] = p.Fe(i,j);
+            buffer[pt_idx + pitch*(icy::SimParams3D::Bp00 + i*3 + j)] = p.Bp(i,j);
+        }
+    }
 }
 
 //===========================================================================
 
-
-
-
-
-
-
-// clamp x to range [a, b]
-__device__ double clamp(double x, double a, double b)
-{
-    return max(a, min(b, x));
-}
-
-
-//===========================================================================
-
-//===========================================================================
-
-__device__ void svd(const real a[4], real u[4], real sigma[2], real v[4])
-{
-    GivensRotation<double> gv(0, 1);
-    GivensRotation<double> gu(0, 1);
-    singular_value_decomposition(a, gu, sigma, gv);
-    gu.template fill<2, real>(u);
-    gv.template fill<2, real>(v);
-}
-
-__device__ void svd2x2(const Matrix2r &mA, Matrix2r &mU, Matrix2r &mS, Matrix2r &mV)
-{
-    real U[4], V[4], S[2];
-    real a[4] = {mA(0,0), mA(0,1), mA(1,0), mA(1,1)};
-    svd(a, U, S, V);
-    mU << U[0],U[1],U[2],U[3];
-    mS << S[0],0,0,S[1];
-    mV << V[0],V[1],V[2],V[3];
-}
-
-
-__device__ Matrix2r polar_decomp_R(const Matrix2r &val)
-{
-    // polar decomposition
-    // http://www.cs.cornell.edu/courses/cs4620/2014fa/lectures/polarnotes.pdf
-    real th = atan2(val(1,0) - val(0,1), val(0,0) + val(1,1));
-    Matrix2r result;
-    result << cosf(th), -sinf(th), sinf(th), cosf(th);
-    return result;
-}
 
 __global__ void kernel_hello()
 {
@@ -598,7 +548,7 @@ __global__ void kernel_hello()
 }
 
 
-void GPU_Implementation3::test()
+void GPU_Implementation4::test()
 {
     cudaError_t err;
     kernel_hello<<<1,1,0,streamCompute>>>();
@@ -616,7 +566,7 @@ void GPU_Implementation3::test()
     cudaDeviceSynchronize();
 }
 
-void GPU_Implementation3::synchronize()
+void GPU_Implementation4::synchronize()
 {
     if(!initialized) return;
     cudaDeviceSynchronize();

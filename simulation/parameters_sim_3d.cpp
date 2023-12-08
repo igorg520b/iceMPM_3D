@@ -118,7 +118,9 @@ void icy::SimParams::ComputeHelperVariables()
 //    UpdateEveryNthStep = (int)(1.f/(400*InitialTimeStep));
     cellsize = GridXDimension/GridX;
     cellsize_inv = 1./cellsize;
+
     Dp_inv = 4./(cellsize*cellsize);
+
     IndRSq = IndDiameter*IndDiameter/4.;
     GridTotal = GridX*GridY*GridZ;
 }
