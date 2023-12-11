@@ -380,88 +380,98 @@ __global__ void kernel_p2g()
             }
 }
 
-__global__ void v2_kernel_update_nodes(real indenter_x, real indenter_y)
+__global__ void kernel_update_nodes(real indenter_x, real indenter_y)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    const int &nGridNodes = gprms.GridX*gprms.GridY;
+    const int &nGridNodes = gprms.GridTotal;
     if(idx >= nGridNodes) return;
 
     real mass = gprms.grid_array[idx];
     if(mass == 0) return;
 
-    const int &nGridPitch = gprms.nGridPitch;
-    Vector2r velocity(gprms.grid_array[1*nGridPitch + idx], gprms.grid_array[2*nGridPitch + idx]);
+    const int &pitch = gprms.nGridPitch;
     const real &gravity = gprms.Gravity;
     const real &indRsq = gprms.IndRSq;
     const int &gridX = gprms.GridX;
     const int &gridY = gprms.GridY;
+    const int &gridZ = gprms.GridZ;
     const real &dt = gprms.InitialTimeStep;
     const real &ind_velocity = gprms.IndVelocity;
     const real &cellsize = gprms.cellsize;
-    const real &ice_friction_coeff = gprms.IceFrictionCoefficient;
 
-    const Vector2r vco(ind_velocity,0);  // velocity of the collision object (indenter)
-    const Vector2r indCenter(indenter_x, indenter_y);
+    const Vector3r vco(ind_velocity,0,0);  // velocity of the collision object (indenter)
+    const Vector2r_ indCenter(indenter_x, indenter_y);
 
+    // velocity of the node, adjusted for gravity and speed-limited
+    Vector3r velocity(gprms.grid_array[pitch+idx], gprms.grid_array[2*pitch+idx], gprms.grid_array[3*pitch+idx]);
     velocity /= mass;
     velocity[1] -= dt*gravity;
-    real vmax = 0.5*cellsize/dt;
-    if(velocity.norm() > vmax) velocity = velocity/velocity.norm()*vmax;
+    const real vmax = 0.9*cellsize/dt;
+    if(velocity.norm() > vmax) velocity = velocity.normalized()*vmax;
 
+    // x-y-z index of the grid node
     int idx_x = idx % gridX;
-    int idx_y = idx / gridX;
+    int idx_y = (idx / gridX) % gridY;
+    int idx_z = idx / (gridX*gridY);
 
-    // indenter
-    Vector2r gnpos(idx_x*cellsize, idx_y*cellsize);
-    Vector2r n = gnpos - indCenter;
+    Vector2r_ gnpos(idx_x*cellsize, idx_y*cellsize);    // position of the grid node
+    Vector2r_ n = gnpos - indCenter;    // vector pointing at the node from indenter's center
     if(n.squaredNorm() < indRsq)
     {
         // grid node is inside the indenter
-        Vector2r vrel = velocity - vco;
-        n.normalize();
-        real vn = vrel.dot(n);   // normal component of the velocity
+        Vector3r vrel = velocity - vco;
+        Vector3r n3d(n[0],n[1],0);
+        n3d.normalize();
+        real vn = vrel.dot(n3d);   // normal component of velocity
         if(vn < 0)
         {
-            Vector2r vt = vrel - n*vn;   // tangential portion of relative velocity
-            Vector2r prev_velocity = velocity;
-            velocity = vco + vt + ice_friction_coeff*vn*vt.normalized();
+            Vector3r vt = vrel - n3d*vn;   // tangential portion of relative velocity
+            Vector3r prev_velocity = velocity;
+            velocity = vco + vt;// + ice_friction_coeff*vn*vt.normalized();
 
-            // force on the indenter
-            Vector2r force = (prev_velocity-velocity)*mass/dt;
+            // record force on the indenter
+            Vector3r force = (prev_velocity-velocity)*mass/dt;
             double angle = atan2(n[0],n[1]);
-            angle += icy::SimParams::pi;
-            angle *= icy::SimParams::n_indenter_subdivisions/ (2*icy::SimParams::pi);
-            int index = (int)angle;
-            index = max(index, 0);
-            index = min(index, icy::SimParams::n_indenter_subdivisions-1);
-            atomicAdd(&gprms.indenter_force_accumulator[0+2*index], force[0]);
-            atomicAdd(&gprms.indenter_force_accumulator[1+2*index], force[1]);
+            angle += icy::SimParams3D::pi;
+            angle *= icy::SimParams3D::n_indenter_subdivisions_angular/(2*icy::SimParams3D::pi);
+            int index_angle = min(max((int)angle, 0), icy::SimParams3D::n_indenter_subdivisions_angular-1);
+
+
+            int index_z = (int)((double)idx_z*icy::SimParams3D::n_indenter_subdivisions_transverse/gridZ);
+            index_z = min(max(index_z,0),icy::SimParams3D::n_indenter_subdivisions_transverse-1);
+
+            int index = index_angle + index_z*icy::SimParams3D::n_indenter_subdivisions_angular;
+
+            for(int i=0;i<3;i++) atomicAdd(&gprms.indenter_force_accumulator[i+3*index], force[i]);
         }
     }
 
-    // attached bottom layer
+    // attached bottom layer and walls
+    if(idx_x <= 3 && velocity[0]<0) velocity[0] = 0;
+    else if(idx_x >= gridX-5 && velocity[0]>0) velocity[0] = 0;
+
     if(idx_y <= 3) velocity.setZero();
     else if(idx_y >= gridY-4 && velocity[1]>0) velocity[1] = 0;
-    if(idx_x <= 3 && velocity.x()<0) velocity[0] = 0;
-    else if(idx_x >= gridX-5) velocity[0] = 0;
-    if(gprms.HoldBlockOnTheRight==1)
-    {
-        int blocksGridX = gprms.BlockLength*gprms.cellsize_inv+5-2;
-        if(idx_x >= blocksGridX) velocity.setZero();
-    }
-    else if(gprms.HoldBlockOnTheRight==2)
-    {
-        int blocksGridX = gprms.BlockLength*gprms.cellsize_inv+5-2;
-        int blocksGridY = gprms.BlockHeight/2*gprms.cellsize_inv+2;
-        if(idx_x >= blocksGridX && idx_x <= blocksGridX + 2 && idx_y < blocksGridY) velocity.setZero();
-        if(idx_x <= 7 && idx_x > 4 && idx_y < blocksGridY) velocity.setZero();
-    }
+
+    if(idx_z <= 3 && velocity[2]<0) velocity[2] = 0;
+    else if(idx_z >= gridZ-5 && velocity[2]>0) velocity[2] = 0;
+
+    // hold lower half of the block at boudaries
+    int blocksGridX = gprms.IceBlockDimX*gprms.cellsize_inv+5-2;
+    int blocksGridY = gprms.IceBlockDimY/2*gprms.cellsize_inv+2;
+    int blocksGridZ = gprms.IceBlockDimZ*gprms.cellsize_inv+5-2;
+
+    if(idx_y < blocksGridY &&
+        ((idx_x <= 7 && idx_x > 4)||
+        (idx_z <= 7 && idx_z > 4)||
+        (idx_x >= blocksGridX && idx_x <= blocksGridX + 2)||
+        (idx_z >= blocksGridZ && idx_z <= blocksGridZ + 2))) velocity.setZero();
+
     // write the updated grid velocity back to memory
-    gprms.grid_array[1*nGridPitch + idx] = velocity[0];
-    gprms.grid_array[2*nGridPitch + idx] = velocity[1];
+    for(int i=0;i<3;i++) gprms.grid_array[(1+i)*pitch + idx] = velocity[i];
 }
 
-__global__ void v2_kernel_g2p()
+_global__ void kernel_g2p()
 {
     int pt_idx = blockIdx.x * blockDim.x + threadIdx.x;
     const int &nPoints = gprms.nPts;
@@ -545,6 +555,16 @@ __global__ void v2_kernel_g2p()
 __global__ void kernel_hello()
 {
     printf("hello from CUDA\n");
+
+    Matrix3r M, U, S, V, _U, _S, _V;
+    M << 1.1, -4.1, 22, 0.1, 0.2, -5, 5, 5.1, 0.11;
+    _U << -0.976143, 0.0184756, 0.216339, 0.21543, -0.0418997, 0.97562, 0.0270897, 0.998951, 0.0369199;
+    _S << 22.9524, 0., 0., 0., 7.12328, 0., 0., 0., 0.732977;
+    _V << -0.039942, 0.703452, 0.70962, 0.182265, 0.7034, -0.687028, -0.982438, 0.101898, -0.15631;
+
+    svd3x3(M,U,S,V);
+    std::cout << "result of svd\nU:\n" << U << "\nS:\n" << S << "\nV:\n" << V << std::endl;
+    std::cout << "\nresult should be\nU:\n" << _U << "\nS:\n" << _S << "\nV:\n" << _V << std::endl;
 }
 
 

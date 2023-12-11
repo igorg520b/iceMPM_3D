@@ -35,11 +35,10 @@ public:
     bool Step();           // either invoked by Worker or via GUI
     void RequestAbort() {abortRequested = true;}   // asynchronous stop
 
-    void FinalizeDataTransfer();
     void UnlockCycleMutex();
 
     icy::SimParams3D prms;
-    GPU_Implementation3 gpu;
+    GPU_Implementation4 gpu;
     float compute_time_per_cycle;
 
     std::vector<icy::Point3D> points;

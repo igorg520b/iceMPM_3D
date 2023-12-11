@@ -16,6 +16,7 @@
 
 typedef double real;
 //typedef float real;
+typedef Eigen::Vector2<real> Vector2r_;
 typedef Eigen::Vector3<real> Vector3r;
 typedef Eigen::Matrix3<real> Matrix3r;
 typedef Eigen::Array3<real> Array3r;
@@ -55,9 +56,9 @@ public:
     real GridXDimension;
 
     real InitialTimeStep, SimulationEndTime;
+    int UpdateEveryNthStep; // run N steps without update
     real Gravity, Density, PoissonsRatio, YoungsModulus;
     real mu, kappa; // Lame
-    real IceFrictionCoefficient;
 
     real IceCompressiveStrength, IceTensileStrength, IceShearStrength;
     real NACC_beta, NACC_M, NACC_Msq;     // these are all computed
@@ -65,11 +66,9 @@ public:
 
     real cellsize, cellsize_inv, Dp_inv;
 
-    int UpdateEveryNthStep; // run N steps without update
 
     real IndDiameter, IndRSq, IndVelocity, IndDepth;
     real IceBlockDimX, IceBlockDimY, IceBlockDimZ;
-    int HoldBlockOnTheRight;
 
     real ParticleVolume, ParticleMass, ParticleViewSize;
 

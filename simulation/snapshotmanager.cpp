@@ -9,6 +9,8 @@
 #include <iomanip>
 #include <fstream>
 
+/*
+
 void icy::SnapshotManager::SaveSnapshot(std::string fileName)
 {
     spdlog::info("writing snapshot {}",fileName);
@@ -180,3 +182,4 @@ void icy::SnapshotManager::DumpPointData(int pt_idx)
 
 
 }
+*/

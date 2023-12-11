@@ -51,21 +51,14 @@ bool icy::Model3D::Step()
 }
 
 
-void icy::Model::FinalizeDataTransfer()
-{
-    /*
-
-*/
-}
-
-void icy::Model::UnlockCycleMutex()
+void icy::Model3D::UnlockCycleMutex()
 {
     // current data was handled by host - allow next cycle to proceed
     processing_current_cycle_data.unlock();
 }
 
 
-void icy::Model::Reset()
+void icy::Model3D::Reset()
 {
     // this should be called after prms are set as desired (either via GUI or CLI)
     spdlog::info("icy::Model::Reset()");

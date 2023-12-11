@@ -4,7 +4,7 @@
 
 #include <QObject>
 #include <QString>
-#include "simulation/parameters_sim.h"
+#include "simulation/parameters_sim_3d.h"
 #include <cmath>
 
 // wrapper for SimParams to display/edit them in GUI
@@ -12,8 +12,9 @@ class ParamsWrapper : public QObject
 {
     Q_OBJECT
 
-    icy::SimParams *prms;
+    icy::SimParams3D *prms;
 
+    // InitialTimeStep
     Q_PROPERTY(double in_TimeStep READ getTimeStep WRITE setTimeStep NOTIFY propertyChanged)
     double getTimeStep() {return prms->InitialTimeStep;}
     void setTimeStep(double val) { prms->InitialTimeStep = val; prms->ComputeHelperVariables();}
@@ -21,13 +22,17 @@ class ParamsWrapper : public QObject
     Q_PROPERTY(QString in_TimeStep_ READ getTimeStep_ NOTIFY propertyChanged)
     QString getTimeStep_() {return QString("%1 s").arg(prms->InitialTimeStep,0,'e',1);}
 
+
+    // SimulationEndTime
     Q_PROPERTY(double in_SimulationTime READ getSimulationTime WRITE setSimulationTime NOTIFY propertyChanged)
     double getSimulationTime() {return prms->SimulationEndTime;}
     void setSimulationTime(double val) { prms->SimulationEndTime = val; }
 
+    // UpdateEveryNthStep
     Q_PROPERTY(int in_UpdateEvery READ getUpdateEveryNthStep NOTIFY propertyChanged)
     int getUpdateEveryNthStep() {return prms->UpdateEveryNthStep;}
 
+    // YoungsModulus
     Q_PROPERTY(double p_YoungsModulus READ getYoungsModulus WRITE setYoungsModulus NOTIFY propertyChanged)
     double getYoungsModulus() {return prms->YoungsModulus;}
     void setYoungsModulus(double val) { prms->YoungsModulus = (float)val; prms->ComputeLame(); }
@@ -35,6 +40,8 @@ class ParamsWrapper : public QObject
     Q_PROPERTY(QString p_YM READ getYM NOTIFY propertyChanged)
     QString getYM() {return QString("%1 Pa").arg(prms->YoungsModulus, 0, 'e', 2);}
 
+
+    // PoissonsRatio
     Q_PROPERTY(double p_PoissonsRatio READ getPoissonsRatio WRITE setPoissonsRatio NOTIFY propertyChanged)
     double getPoissonsRatio() {return prms->PoissonsRatio;}
     void setPoissonsRatio(double val) { prms->PoissonsRatio = (float)val; prms->ComputeLame(); }
@@ -46,9 +53,7 @@ class ParamsWrapper : public QObject
     double getKappa() {return prms->kappa;}
 
 
-    Q_PROPERTY(double p_FrictionCoeff READ getIceFrictionCoefficient NOTIFY propertyChanged)
-    double getIceFrictionCoefficient() {return prms->IceFrictionCoefficient;}
-
+    // ParticleViewSize
     Q_PROPERTY(double p_ParticleViewSize READ getParticleViewSize WRITE setParticleViewSize NOTIFY propertyChanged)
     double getParticleViewSize() {return prms->ParticleViewSize;}
     void setParticleViewSize(double val) {prms->ParticleViewSize=val;}
@@ -64,6 +69,7 @@ class ParamsWrapper : public QObject
 
     Q_PROPERTY(double IndDepth READ getIndDepth NOTIFY propertyChanged)
     double getIndDepth() {return prms->IndDepth;}
+
 
     // ice block
     Q_PROPERTY(int b_PtActual READ getPointCountActual NOTIFY propertyChanged)
@@ -92,6 +98,7 @@ class ParamsWrapper : public QObject
     double getDPTanPhi() {return prms->DP_tan_phi;}
 
 
+    // Failure surface
     Q_PROPERTY(double ice_CompressiveStr READ getIce_CompressiveStr WRITE setIce_CompressiveStr NOTIFY propertyChanged)
     double getIce_CompressiveStr() {return prms->IceCompressiveStrength;}
     void setIce_CompressiveStr(double val) {prms->IceCompressiveStrength = val; prms->ComputeCamClayParams2();}
@@ -105,6 +112,7 @@ class ParamsWrapper : public QObject
     void setIce_ShearStr(double val) {prms->IceShearStrength = val; prms->ComputeCamClayParams2();}
 
 
+    // kernel execution
     Q_PROPERTY(int tpb_P2G READ get_tpb_P2G WRITE set_tpb_P2G NOTIFY propertyChanged)
     int get_tpb_P2G() {return prms->tpb_P2G;}
     void set_tpb_P2G(int val) { prms->tpb_P2G = val; }
@@ -122,12 +130,6 @@ public:
     ParamsWrapper(icy::SimParams *p)
     {
         this->prms = p;
-        Reset();
-    }
-
-    void Reset()
-    {
-        // it is possible to change parameters here
     }
 
 

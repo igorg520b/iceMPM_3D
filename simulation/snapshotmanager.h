@@ -2,7 +2,7 @@
 #define SNAPSHOTMANAGER_H
 
 #include <string>
-
+/*
 namespace icy {class SnapshotManager; class Model;}
 
 
@@ -18,5 +18,5 @@ public:
     void ReadDirectory(std::string directoryPath);
     void DumpPointData(int pt_idx);
 };
-
+*/
 #endif // SNAPSHOTWRITER_H
