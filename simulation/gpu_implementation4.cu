@@ -192,15 +192,19 @@ __forceinline__ __device__ void svd3x3(const Matrix3r &A, Matrix3r &_U, Matrix3r
     double U[9] = {};
     double S[3] = {};
     double V[9] = {};
-    svd(A(0,0), A(1,0), A(2,0), A(0,1), A(1,1), A(2,1), A(0,2), A(1,2), A(2,2),     //F[0], F[3], F[6], F[1], F[4], F[7], F[2], F[5], F[8],
+    svd(A(0,0), A(0,1), A(0,2), A(1,0), A(1,1), A(1,2), A(2,0), A(2,1), A(2,2),
               U[0], U[3], U[6], U[1], U[4], U[7], U[2], U[5], U[8],
               S[0], S[1], S[2],
               V[0], V[3], V[6], V[1], V[4], V[7], V[2], V[5], V[8]);
-    _U << U[0], U[1], U[2], U[3], U[4], U[5], U[6], U[7], U[8];
+    _U << U[0], U[3], U[6],
+          U[1], U[4], U[7],
+          U[2], U[5], U[8];
     _S << S[0], 0, 0,
         0, S[1], 0,
         0, 0, S[2];
-    _V << V[0], V[1], V[2], V[3], V[4], V[5], V[6], V[7], V[8];
+    _V << V[0], V[3], V[6],
+          V[1], V[4], V[7],
+          V[2], V[5], V[8];
 }
 
 
@@ -570,12 +574,21 @@ __global__ void kernel_hello()
     for(int i=0;i<3;i++) { for(int j=0;j<3;j++) printf("%f ;",S(i,j)); printf("\n"); }
     printf("\nV:\n");
     for(int i=0;i<3;i++) { for(int j=0;j<3;j++) printf("%f ;",V(i,j)); printf("\n"); }
+
+    Matrix3r USVT = U*S*V.transpose();
+    printf("\nUSVT:\n");
+    for(int i=0;i<3;i++) { for(int j=0;j<3;j++) printf("%f ;",USVT(i,j)); printf("\n"); }
+    printf("\nM:\n");
+    for(int i=0;i<3;i++) { for(int j=0;j<3;j++) printf("%f ;",M(i,j)); printf("\n"); }
+
+    /*
     printf("\nresult should be\nU:\n");
     for(int i=0;i<3;i++) { for(int j=0;j<3;j++) printf("%f ;",_U(i,j)); printf("\n"); }
     printf("\nS:\n");
     for(int i=0;i<3;i++) { for(int j=0;j<3;j++) printf("%f ;",_S(i,j)); printf("\n"); }
     printf("\nV:\n");
     for(int i=0;i<3;i++) { for(int j=0;j<3;j++) printf("%f ;",_V(i,j)); printf("\n"); }
+*/
 }
 
 

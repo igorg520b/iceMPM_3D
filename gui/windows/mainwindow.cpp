@@ -21,6 +21,7 @@ MainWindow::MainWindow(QWidget *parent)
     worker = new BackgroundWorker(&model);
 //    snapshot.model = &model;
     model.gpu.initialize();
+    model.gpu.test();
     representation.model = &model;
 
     // VTK
@@ -108,21 +109,20 @@ MainWindow::MainWindow(QWidget *parent)
     {
         QSettings settings(settingsFileName,QSettings::IniFormat);
         QVariant var;
-
-
-        /*
         var = settings.value("camData");
         if(!var.isNull())
         {
-            double *vec = (double*)var.toByteArray().constData();
-            camera->SetClippingRange(1e-1,1e4);
-            camera->SetViewUp(0.0, 1.0, 0.0);
-            camera->SetPosition(vec[0],vec[1],vec[2]);
-            camera->SetFocalPoint(vec[3],vec[4],vec[5]);
-            camera->SetParallelScale(vec[6]);
-            camera->Modified();
+            double *data = (double*)var.toByteArray().constData();
+            camera->SetPosition(data[0],data[1],data[2]);
+            camera->SetFocalPoint(data[3],data[4],data[5]);
+            camera->SetViewUp(data[6],data[7],data[8]);
+            camera->SetViewAngle(data[9]);
+            camera->SetClippingRange(1e-3,1e5);
+            qDebug() << "camera position restored";
+            spdlog::info("camdata load {}, {}, {}, {}, {}, {},{}, {}, {}, {}",
+                         data[0],data[1],data[2],data[3],data[4],data[5],data[6],data[7],data[8],data[9]);
         }
-*/
+
 
         var = settings.value("visualization_ranges");
         if(!var.isNull())
@@ -216,19 +216,16 @@ void MainWindow::quit_triggered()
     QSettings settings(settingsFileName,QSettings::IniFormat);
     qDebug() << "MainWindow: closing main window; " << settings.fileName();
 
-    /*
     double data[10];
     renderer->GetActiveCamera()->GetPosition(&data[0]);
     renderer->GetActiveCamera()->GetFocalPoint(&data[3]);
-    data[6] = renderer->GetActiveCamera()->GetParallelScale();
-
-    qDebug() << "cam pos " << data[0] << "," << data[1] << "," << data[2];
-    qDebug() << "cam focal pt " << data[3] << "," << data[4] << "," << data[5];
-    qDebug() << "cam par scale " << data[6];
-
+    renderer->GetActiveCamera()->GetViewUp(&data[6]);
+    data[9]=renderer->GetActiveCamera()->GetViewAngle();
     QByteArray arr((char*)data, sizeof(data));
     settings.setValue("camData", arr);
-*/
+    spdlog::info("camdata {}, {}, {}, {}, {}, {},{}, {}, {}, {}",
+                 data[0],data[1],data[2],data[3],data[4],data[5],data[6],data[7],data[8],data[9]);
+
     QByteArray ranges((char*)representation.ranges, sizeof(representation.ranges));
     settings.setValue("visualization_ranges", ranges);
 

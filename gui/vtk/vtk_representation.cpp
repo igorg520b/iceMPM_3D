@@ -43,15 +43,17 @@ icy::VisualRepresentation::VisualRepresentation()
 
     indenterMapper->SetInputConnection(indenterSource->GetOutputPort());
     actor_indenter->SetMapper(indenterMapper);
-    actor_indenter->GetProperty()->LightingOff();
+//    actor_indenter->GetProperty()->LightingOff();
     actor_indenter->GetProperty()->EdgeVisibilityOn();
     actor_indenter->GetProperty()->VertexVisibilityOff();
-    actor_indenter->GetProperty()->SetColor(0.1,0.1,0.1);
+    actor_indenter->GetProperty()->SetColor(0.2,0.1,0.1);
     actor_indenter->GetProperty()->SetEdgeColor(90.0/255.0, 90.0/255.0, 97.0/255.0);
-    actor_indenter->GetProperty()->ShadingOff();
-    actor_indenter->GetProperty()->SetInterpolationToFlat();
+//    actor_indenter->GetProperty()->ShadingOff();
+//    actor_indenter->GetProperty()->SetInterpolationToFlat();
     actor_indenter->PickableOff();
     actor_indenter->GetProperty()->SetLineWidth(3);
+//    actor_indenter->RotateX(90);
+    actor_indenter->RotateY(90);
 
 
     points_polydata->SetPoints(points);
@@ -194,9 +196,9 @@ void icy::VisualRepresentation::SynchronizeValues()
     points->Modified();
     visualized_values->Modified();
     points_filter->Update();
-    indenterSource->SetCenter(model->prms.indenter_x, model->prms.indenter_y,
-                              model->prms.GridZ*model->prms.cellsize/2);
-    indenterSource->Modified();
+//    indenterSource->SetCenter(model->prms.indenter_x, model->prms.indenter_y,
+//                              model->prms.GridZ*model->prms.cellsize/2);
+    indenterSource->SetCenter(model->prms.indenter_x, model->prms.indenter_y,0);
 }
 
 

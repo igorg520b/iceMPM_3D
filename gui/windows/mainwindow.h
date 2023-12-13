@@ -49,6 +49,8 @@
 #include <iomanip>
 #include <iostream>
 
+#include <spdlog/spdlog.h>
+
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
