@@ -1,6 +1,6 @@
 #include "gpu_implementation4.h"
 
-extern __constant__ icy::SimParams gprms;
+extern __constant__ icy::SimParams3D gprms;
 
 
 

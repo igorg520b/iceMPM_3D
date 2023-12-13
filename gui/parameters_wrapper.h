@@ -91,8 +91,8 @@ class ParamsWrapper : public QObject
 
     // Drucker-Prager
     Q_PROPERTY(double DP_phi READ getDPPhi WRITE setDPPhi NOTIFY propertyChanged)
-    double getDPPhi() {return std::atan(prms->DP_tan_phi)*180/icy::SimParams::pi;}
-    void setDPPhi(double val) {prms->DP_tan_phi = tan(val*icy::SimParams::pi/180);}
+    double getDPPhi() {return std::atan(prms->DP_tan_phi)*180/icy::SimParams3D::pi;}
+    void setDPPhi(double val) {prms->DP_tan_phi = tan(val*icy::SimParams3D::pi/180);}
 
     Q_PROPERTY(double DP_tan_phi READ getDPTanPhi NOTIFY propertyChanged)
     double getDPTanPhi() {return prms->DP_tan_phi;}
@@ -127,7 +127,7 @@ class ParamsWrapper : public QObject
 
 
 public:
-    ParamsWrapper(icy::SimParams *p)
+    ParamsWrapper(icy::SimParams3D *p)
     {
         this->prms = p;
     }

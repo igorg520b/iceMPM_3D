@@ -28,7 +28,7 @@ namespace icy { class Model3D; }
 class icy::Model3D
 {
 public:
-    Model();
+    Model3D();
     void Reset();
     void ResetToStep0();
     void Prepare();        // invoked once, at simulation start

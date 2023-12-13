@@ -1,6 +1,6 @@
 #include "vtk_representation.h"
-#include "model.h"
-#include "parameters_sim.h"
+#include "model_3d.h"
+#include "parameters_sim_3d.h"
 //#include <omp.h>
 #include <algorithm>
 #include <iostream>
@@ -41,9 +41,6 @@ icy::VisualRepresentation::VisualRepresentation()
     indenterMapper->SetInputConnection(indenterSource->GetOutputPort());
     actor_indenter->SetMapper(indenterMapper);
 
-    indenterSource->GeneratePolygonOff();
-    indenterSource->SetNumberOfSides(50);
-
     indenterMapper->SetInputConnection(indenterSource->GetOutputPort());
     actor_indenter->SetMapper(indenterMapper);
     actor_indenter->GetProperty()->LightingOff();
@@ -73,9 +70,9 @@ icy::VisualRepresentation::VisualRepresentation()
     actor_points->GetProperty()->SetPointSize(2);
     actor_points->GetProperty()->SetVertexColor(1,0,0);
     actor_points->GetProperty()->SetColor(0,0,0);
-    actor_points->GetProperty()->LightingOff();
-    actor_points->GetProperty()->ShadingOff();
-    actor_points->GetProperty()->SetInterpolationToFlat();
+//    actor_points->GetProperty()->LightingOff();
+//    actor_points->GetProperty()->ShadingOff();
+//    actor_points->GetProperty()->SetInterpolationToFlat();
     actor_points->PickableOff();
 
 
@@ -84,12 +81,13 @@ icy::VisualRepresentation::VisualRepresentation()
 
     actor_grid->SetMapper(grid_mapper);
     actor_grid->GetProperty()->SetEdgeVisibility(true);
-    actor_grid->GetProperty()->SetEdgeColor(0.8,0.8,0.8);
+//    actor_grid->GetProperty()->SetEdgeColor(0.8,0.8,0.8);
     actor_grid->GetProperty()->LightingOff();
     actor_grid->GetProperty()->ShadingOff();
     actor_grid->GetProperty()->SetInterpolationToFlat();
     actor_grid->PickableOff();
-    actor_grid->GetProperty()->SetColor(0.95,0.95,0.95);
+    actor_grid->GetProperty()->SetColor(0.05,0.05,0.05);
+    actor_grid->GetProperty()->SetRepresentationToWireframe();
 
     scalarBar->SetLookupTable(lutMPM);
     scalarBar->SetMaximumWidthInPixels(130);
@@ -126,22 +124,28 @@ void icy::VisualRepresentation::SynchronizeTopology()
     SynchronizeValues();
 
     // structured grid
-    int &gx = model->prms.GridX;
-    int &gy = model->prms.GridY;
     real &h = model->prms.cellsize;
-    structuredGrid->SetDimensions(model->prms.GridX, model->prms.GridY, 1);
+    real gx = model->prms.GridX*h;
+    real gy = model->prms.GridY*h;
+    real gz = model->prms.GridZ*h;
 
-    grid_points->SetNumberOfPoints(gx*gy);
-    for(int idx_y=0; idx_y<gy; idx_y++)
-        for(int idx_x=0; idx_x<gx; idx_x++)
-        {
-            float x = idx_x * h;
-            float y = idx_y * h;
-            double pt_pos[3] {x, y, -1.0};
-            grid_points->SetPoint((vtkIdType)(idx_x+idx_y*gx), pt_pos);
-        }
+    structuredGrid->SetDimensions(2, 2, 2);
+
+    grid_points->SetNumberOfPoints(8);
+    grid_points->SetPoint(0, 0.,0.,0.);
+    grid_points->SetPoint(1, gx, 0, 0);
+    grid_points->SetPoint(2, 0, gy, 0);
+    grid_points->SetPoint(3, gx, gy, 0);
+    grid_points->SetPoint(4, 0.,0.,gz);
+    grid_points->SetPoint(5, gx, 0, gz);
+    grid_points->SetPoint(6, 0, gy, gz);
+    grid_points->SetPoint(7, gx, gy, gz);
+
     structuredGrid->SetPoints(grid_points);
+
     indenterSource->SetRadius(model->prms.IndDiameter/2.f);
+    indenterSource->SetHeight(1.5);
+    indenterSource->SetResolution(100);
 }
 
 
@@ -153,8 +157,8 @@ void icy::VisualRepresentation::SynchronizeValues()
 //#pragma omp parallel
     for(int i=0;i<model->points.size();i++)
     {
-        const icy::Point &p = model->points[i];
-        double x[3] {p.pos[0], p.pos[1], 0};
+        const icy::Point3D &p = model->points[i];
+        double x[3] {p.pos[0], p.pos[1], p.pos[3]};
         points->SetPoint((vtkIdType)i, x);
       }
 
@@ -174,49 +178,9 @@ void icy::VisualRepresentation::SynchronizeValues()
         points_mapper->SetLookupTable(hueLut_four);
         scalarBar->SetLookupTable(hueLut_four);
     }
-    else if(VisualizingVariable == VisOpt::NACC_case_first)
-    {
-        for(int i=0;i<model->points.size();i++) visualized_values->SetValue((vtkIdType)i, model->points[i].case_when_Jp_first_changes);
-        points_mapper->SetLookupTable(hueLut_four);
-        scalarBar->SetLookupTable(hueLut_four);
-    }
     else if(VisualizingVariable == VisOpt::Jp)
     {
         for(int i=0;i<model->points.size();i++) visualized_values->SetValue((vtkIdType)i, model->points[i].Jp_inv-1);
-    }
-    else if(VisualizingVariable == VisOpt::Jp_positive)
-    {
-        for(int i=0;i<model->points.size();i++) visualized_values->SetValue((vtkIdType)i, model->points[i].Jp_inv>1 ? 1. : 0.);
-    }
-    else if(VisualizingVariable == VisOpt::zeta)
-    {
-        for(int i=0;i<model->points.size();i++) visualized_values->SetValue((vtkIdType)i, model->points[i].zeta-1);
-    }
-    else if(VisualizingVariable == VisOpt::p0)
-    {
-        for(int i=0;i<model->points.size();i++) visualized_values->SetValue((vtkIdType)i, model->points[i].visualize_p0);
-        //centerVal = model->prms.IceCompressiveStrength;
-        points_mapper->SetLookupTable(hueLut);
-        scalarBar->SetLookupTable(hueLut);
-    }
-    else if(VisualizingVariable == VisOpt::q_limit)
-    {
-        for(int i=0;i<model->points.size();i++) visualized_values->SetValue((vtkIdType)i, model->points[i].visualize_q_limit);
-        points_mapper->SetLookupTable(hueLut);
-        scalarBar->SetLookupTable(hueLut);
-    }
-    else if(VisualizingVariable == VisOpt::p_tr)
-    {
-        for(int i=0;i<model->points.size();i++) visualized_values->SetValue((vtkIdType)i, model->points[i].visualize_p);
-//        centerVal = (model->prms.IceCompressiveStrength-model->prms.IceTensileStrength)/2;
-        points_mapper->SetLookupTable(hueLut);
-        scalarBar->SetLookupTable(hueLut);
-    }
-    else if(VisualizingVariable == VisOpt::q_tr)
-    {
-        for(int i=0;i<model->points.size();i++) visualized_values->SetValue((vtkIdType)i, model->points[i].visualize_q);
-        points_mapper->SetLookupTable(hueLut);
-        scalarBar->SetLookupTable(hueLut);
     }
 
     model->hostside_data_update_mutex.unlock();
@@ -230,7 +194,9 @@ void icy::VisualRepresentation::SynchronizeValues()
     points->Modified();
     visualized_values->Modified();
     points_filter->Update();
-    indenterSource->SetCenter(model->prms.indenter_x, model->prms.indenter_y, 1);
+    indenterSource->SetCenter(model->prms.indenter_x, model->prms.indenter_y,
+                              model->prms.GridZ*model->prms.cellsize/2);
+    indenterSource->Modified();
 }
 
 
@@ -240,19 +206,4 @@ void icy::VisualRepresentation::ChangeVisualizationOption(int option)
     SynchronizeTopology();
 }
 
-int icy::VisualRepresentation::FindPoint(double x, double y)
-{
-    Vector2r v(x,y);
-    auto result = std::min_element(model->points.begin(), model->points.end(),
-                                   [v](icy::Point &p1, icy::Point &p2)
-    {return (p1.pos-v).norm() < (p2.pos-v).norm();});
-    int idx = std::distance(model->points.begin(),result);
-    std::cout << "FindPoint " << idx << std::endl;
-    Vector2r pos = result->pos;
-    real x1 = pos[0];
-    real y1 = pos[1];
-    std::cout << "pt " << x1 << "; " << y1 << std::endl;
-    return idx;
-
-}
 

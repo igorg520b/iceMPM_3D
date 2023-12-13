@@ -1,5 +1,5 @@
 #include "snapshotmanager.h"
-#include "model.h"
+#include "model_3d.h"
 
 #include <spdlog/spdlog.h>
 #include <H5Cpp.h>

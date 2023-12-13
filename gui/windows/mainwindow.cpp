@@ -19,7 +19,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     params = new ParamsWrapper(&model.prms);
     worker = new BackgroundWorker(&model);
-    snapshot.model = &model;
+//    snapshot.model = &model;
     model.gpu.initialize();
     representation.model = &model;
 
@@ -29,9 +29,8 @@ MainWindow::MainWindow(QWidget *parent)
 
     renderer->SetBackground(1.0,1.0,1.0);
     renderWindow->AddRenderer(renderer);
-    renderWindow->GetInteractor()->SetInteractorStyle(pointSelector);
-
-    pointSelector->clicked_on_a_point = [&](double x, double y) { point_selection(x,y);};
+//    renderWindow->GetInteractor()->SetInteractorStyle(pointSelector);
+    // pointSelector->clicked_on_a_point = [&](double x, double y) { point_selection(x,y);};
 
 
     // property browser
@@ -97,21 +96,21 @@ MainWindow::MainWindow(QWidget *parent)
     for(int i=0;i<qme.keyCount();i++) comboBox_visualizations->addItem(qme.key(i));
 
     connect(comboBox_visualizations, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            [&](int index){ comboboxIndexChanged_visualizations(index); });
+            [this](int index){ this->comboboxIndexChanged_visualizations(index); });
 
     // read/restore saved settings
     settingsFileName = QDir::currentPath() + "/cm.ini";
     QFileInfo fi(settingsFileName);
 
+    vtkCamera* camera = renderer->GetActiveCamera();
+    renderer->ResetCamera();
     if(fi.exists())
     {
         QSettings settings(settingsFileName,QSettings::IniFormat);
         QVariant var;
 
-        vtkCamera* camera = renderer->GetActiveCamera();
-        renderer->ResetCamera();
-        camera->ParallelProjectionOn();
 
+        /*
         var = settings.value("camData");
         if(!var.isNull())
         {
@@ -123,6 +122,7 @@ MainWindow::MainWindow(QWidget *parent)
             camera->SetParallelScale(vec[6]);
             camera->Modified();
         }
+*/
 
         var = settings.value("visualization_ranges");
         if(!var.isNull())
@@ -216,6 +216,7 @@ void MainWindow::quit_triggered()
     QSettings settings(settingsFileName,QSettings::IniFormat);
     qDebug() << "MainWindow: closing main window; " << settings.fileName();
 
+    /*
     double data[10];
     renderer->GetActiveCamera()->GetPosition(&data[0]);
     renderer->GetActiveCamera()->GetFocalPoint(&data[3]);
@@ -227,7 +228,7 @@ void MainWindow::quit_triggered()
 
     QByteArray arr((char*)data, sizeof(data));
     settings.setValue("camData", arr);
-
+*/
     QByteArray ranges((char*)representation.ranges, sizeof(representation.ranges));
     settings.setValue("visualization_ranges", ranges);
 
@@ -268,13 +269,6 @@ void MainWindow::cameraReset_triggered()
     qDebug() << "MainWindow::on_action_camera_reset_triggered()";
     vtkCamera* camera = renderer->GetActiveCamera();
     renderer->ResetCamera();
-    camera->ParallelProjectionOn();
-    camera->SetClippingRange(1e-1,1e3);
-    camera->SetFocalPoint(0, 0., 0.);
-    camera->SetPosition(0.0, 0.0, 50.0);
-    camera->SetViewUp(0.0, 1.0, 0.0);
-    camera->SetParallelScale(2.5);
-
     camera->Modified();
     renderWindow->Render();
 }
@@ -282,17 +276,20 @@ void MainWindow::cameraReset_triggered()
 
 void MainWindow::sliderValueChanged(int val)
 {
+    /*
 //    int val = slider1->value();
     QString stringIdx = QString{"%1"}.arg(val,5, 10, QLatin1Char('0'));
     labelStepCount->setText(stringIdx);
     QString stringFileName = stringIdx + ".h5";
     stringFileName = QString::fromStdString(snapshot.path) + "/"+stringFileName;
     OpenFile(stringFileName);
+*/
 }
 
 
 void MainWindow::open_snapshot_triggered()
 {
+    /*
     QString qFileName = QFileDialog::getOpenFileName(this, "Open Simulation Snapshot", QDir::currentPath(), "HDF5 Files (*.h5)");
     if(qFileName.isNull())return;
     int idx = OpenFile(qFileName);
@@ -303,6 +300,7 @@ void MainWindow::open_snapshot_triggered()
     slider1->setRange(1,snapshot.last_file_index);
     slider1->setValue(idx);
     slider1->blockSignals(false);
+*/
 }
 
 void MainWindow::simulation_reset_triggered()
@@ -315,11 +313,13 @@ void MainWindow::simulation_reset_triggered()
 
 int MainWindow::OpenFile(QString fileName)
 {
+    /*
     int idx = snapshot.ReadSnapshot(fileName.toStdString());
     representation.SynchronizeTopology();
     updateGUI();
     pbrowser->setActiveObject(params);
     return idx;
+*/
 }
 
 void MainWindow::load_parameter_triggered()
@@ -340,6 +340,7 @@ void MainWindow::load_parameter_triggered()
 
 void MainWindow::createVideo_triggered()
 {
+    /*
     QString filePath = QDir::currentPath()+ "/video";
 
     QDir videoDir(filePath);
@@ -375,6 +376,7 @@ void MainWindow::createVideo_triggered()
         filePath.toStdString() + "/result.mp4\n";
     qDebug() << ffmpegCommand.c_str();
     int result = std::system(ffmpegCommand.c_str());
+*/
 }
 
 
@@ -411,6 +413,7 @@ void MainWindow::screenshot_triggered()
 
 void MainWindow::save_binary_data()
 {
+    /*
     QDir pngDir(QDir::currentPath()+ "/"+ outputDirectory.c_str());
     if(!pngDir.exists()) pngDir.mkdir(QDir::currentPath()+ "/"+ outputDirectory.c_str());
 
@@ -418,6 +421,7 @@ void MainWindow::save_binary_data()
     QString outputPathSnapshot = QDir::currentPath()+ "/"+outputDirectory.c_str() + "/" +
                          QString::number(snapshot_number).rightJustified(5, '0') + ".h5";
     snapshot.SaveSnapshot(outputPathSnapshot.toStdString());
+*/
 }
 
 
@@ -470,18 +474,10 @@ void MainWindow::background_worker_paused()
     statusLabel->setText("simulation stopped");
 }
 
-void MainWindow::point_selection(double x, double y)
-{
-    /*
-    qDebug() << QString("clicked %1; %2").arg(x).arg(y);
-    int idx = representation.FindPoint(x,y);
-    qDebug() << QString("found point index %1").arg(idx);
-    snapshot.DumpPointData(idx);
-*/
-}
 
 void MainWindow::export_indenter_force_triggered()
 {
+    /*
     std::ofstream ofs("indenter_force.csv", std::ofstream::out | std::ofstream::trunc);
     ofs << "fx,fy,F_total\n";
     for(int i=0;i<model.indenter_force_history.size();i++)
@@ -491,5 +487,6 @@ void MainWindow::export_indenter_force_triggered()
     }
     ofs.close();
     qDebug() << "export_indenter_force_triggered()";
+*/
 }
 

@@ -35,7 +35,7 @@
 
 
 
-namespace icy { class VisualRepresentation; class Model;}
+namespace icy { class VisualRepresentation; class Model3D;}
 
 class icy::VisualRepresentation : public QObject
 {
@@ -43,11 +43,10 @@ class icy::VisualRepresentation : public QObject
 
 public:
     VisualRepresentation();
-    int FindPoint(double x, double y);
 
-    icy::Model *model;
+    icy::Model3D *model;
 
-    enum VisOpt { none, NACC_case, Jp, zeta, p0, p_tr, q_tr, Jp_positive, NACC_case_first, q_limit };
+    enum VisOpt { none, NACC_case, Jp };
     Q_ENUM(VisOpt)
     VisOpt VisualizingVariable = VisOpt::none;
     double ranges[20] = {};
@@ -68,7 +67,7 @@ private:
     vtkNew<vtkLookupTable> hueLut_pastel, hueLut_four;
 
     // indenter
-    vtkNew<vtkRegularPolygonSource> indenterSource;
+    vtkNew<vtkCylinderSource> indenterSource;
     vtkNew<vtkPolyDataMapper> indenterMapper;
 
     // points

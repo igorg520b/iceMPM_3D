@@ -1,10 +1,11 @@
 #include "model_3d.h"
 #include <spdlog/spdlog.h>
+#include <algorithm>
+#include <cmath>
 
 icy::Model3D::Model3D()
 {
     prms.Reset();
-    gpu.prms = &prms;
     gpu.model = this;
 };
 
@@ -76,11 +77,11 @@ void icy::Model3D::Reset()
     const real &magic_constant = 0.25;
 
     const real z_center = prms.GridZ*h/2;
-    const real block_z_min = max(z_center - bz/2, 0);
-    const real bloc_z_max = min(z_center + bz/2, prms.GridZ*h);
-    const real kRadius =cbrt(magic_constant*bvol/prms.PointsWanted);
+    const real block_z_min = std::max(z_center - bz/2, 0.0);
+    const real block_z_max = std::min(z_center + bz/2, prms.GridZ*h);
+    const real kRadius = cbrt(magic_constant*bvol/prms.PointsWanted);
     const std::array<real, 3>kXMin{5.0*h, 2.0*h, block_z_min};
-    const std::array<real, 3>kXMax{5.0*h+block_length, 2.0*h+block_height, block_z_max};
+    const std::array<real, 3>kXMax{5.0*h+bx, 2.0*h+by, block_z_max};
 
     spdlog::info("starting thinks::PoissonDiskSampling");
     std::vector<std::array<real, 3>> prresult = thinks::PoissonDiskSampling(kRadius, kXMin, kXMax);
@@ -97,11 +98,11 @@ void icy::Model3D::Reset()
         for(int i=0;i<3;i++) p.pos[i] = prresult[k][i];
         p.pos_initial = p.pos;
     }
-    prms.indenter_y = block_height + 2*h + prms.IndDiameter/2 - prms.IndDepth;
+    prms.indenter_y = by + 2*h + prms.IndDiameter/2 - prms.IndDepth;
     prms.indenter_x = prms.indenter_x_initial = 4*h - prms.IndDiameter/2;
 
     gpu.cuda_allocate_arrays(prms.GridTotal, prms.nPts);
-    gpu.transfer_ponts_to_device(points);
+    gpu.transfer_ponts_to_device();
     Prepare();
     spdlog::info("icy::Model::Reset() done");
 }
@@ -118,9 +119,9 @@ void icy::Model3D::ResetToStep0()
     const real &h = prms.cellsize;
 
     for(int k = 0; k<points.size(); k++) points[k].Reset();
-    prms.indenter_y = prms.BlockHeight + 2*h + prms.IndDiameter/2 - prms.IndDepth;
+    prms.indenter_y = prms.IceBlockDimY + 2*h + prms.IndDiameter/2 - prms.IndDepth;
     prms.indenter_x = prms.indenter_x_initial = 5*h - prms.IndDiameter/2 - h;
-    gpu.transfer_ponts_to_device(points);
+    gpu.transfer_ponts_to_device();
     Prepare();
     spdlog::info("ResetToStep0() done");
 }

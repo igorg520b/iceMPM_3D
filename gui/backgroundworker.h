@@ -7,13 +7,13 @@
 #include <QMutex>
 #include <QWaitCondition>
 #include <QString>
-#include "model.h"
+#include "model_3d.h"
 
 class BackgroundWorker : public QThread
 {
     Q_OBJECT
 public:
-    BackgroundWorker(icy::Model *controller_);
+    BackgroundWorker(icy::Model3D *controller_);
     void Pause();       // cancel current step and pause the worker thread
     void Resume();      // resume the worker thread
     void Finalize();    // exit the worker thread
@@ -21,7 +21,7 @@ public:
     bool timeToPause = true;
     bool running = false;
     bool visual_update_requested = false;
-    icy::Model *controller;
+    icy::Model3D *controller;
 
 protected:
     void run() override;

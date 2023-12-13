@@ -1,5 +1,5 @@
 #include "gpu_implementation4.h"
-#include "model_3d.h".h"
+#include "model_3d.h"
 
 #include <stdio.h>
 #include <iostream>
@@ -36,7 +36,7 @@ void GPU_Implementation4::cuda_update_constants()
     cudaError_t err;
     err = cudaMemcpyToSymbol(gpu_error_indicator, &error_code, sizeof(int));
     if(err != cudaSuccess) throw std::runtime_error("cuda_update_constants()");
-    err = cudaMemcpyToSymbol(gprms, prms, sizeof(icy::SimParams3D));
+    err = cudaMemcpyToSymbol(gprms, &model->prms, sizeof(icy::SimParams3D));
     if(err!=cudaSuccess) throw std::runtime_error("cuda_update_constants: gprms");
     spdlog::info("CUDA constants copied to device");
 }
@@ -47,33 +47,33 @@ void GPU_Implementation4::cuda_allocate_arrays(size_t nGridNodes, size_t nPoints
     cudaError_t err;
 
     // device memory for grid
-    cudaFree(prms->grid_array);
-    cudaFree(prms->pts_array);
-    cudaFree(prms->indenter_force_accumulator);
+    cudaFree(model->prms.grid_array);
+    cudaFree(model->prms.pts_array);
+    cudaFree(model->prms.indenter_force_accumulator);
     cudaFreeHost(tmp_transfer_buffer);
     cudaFreeHost(host_side_indenter_force_accumulator);
 
-    err = cudaMallocPitch (&prms->grid_array, &prms->nGridPitch, sizeof(real)*nGridNodes, icy::SimParams3D::nGridArrays);
+    err = cudaMallocPitch (&model->prms.grid_array, &model->prms.nGridPitch, sizeof(real)*nGridNodes, icy::SimParams3D::nGridArrays);
     if(err != cudaSuccess) throw std::runtime_error("cuda_allocate_arrays");
-    prms->nGridPitch /= sizeof(real); // assume that this divides without a remainder
+    model->prms.nGridPitch /= sizeof(real); // assume that this divides without a remainder
 
     // device memory for points
-    err = cudaMallocPitch (&prms->pts_array, &prms->nPtsPitch, sizeof(real)*nPoints, icy::SimParams3D::nPtsArrays);
+    err = cudaMallocPitch (&model->prms.pts_array, &model->prms.nPtsPitch, sizeof(real)*nPoints, icy::SimParams3D::nPtsArrays);
     if(err != cudaSuccess) throw std::runtime_error("cuda_allocate_arrays");
-    prms->nPtsPitch /= sizeof(real);
+    model->prms.nPtsPitch /= sizeof(real);
 
-    err = cudaMalloc(&prms->indenter_force_accumulator, sizeof(real)*icy::SimParams3D::indenter_array_size);
+    err = cudaMalloc(&model->prms.indenter_force_accumulator, sizeof(real)*icy::SimParams3D::indenter_array_size);
     if(err != cudaSuccess) throw std::runtime_error("cuda_allocate_arrays");
 
     // pinned host memory
-    err = cudaMallocHost(&tmp_transfer_buffer, sizeof(real)*prms->nPtsPitch*icy::SimParams3D::nPtsArrays);
+    err = cudaMallocHost(&tmp_transfer_buffer, sizeof(real)*model->prms.nPtsPitch*icy::SimParams3D::nPtsArrays);
     if(err!=cudaSuccess) throw std::runtime_error("cuda_allocate_arrays");
     err = cudaMallocHost(&host_side_indenter_force_accumulator, sizeof(real)*icy::SimParams3D::indenter_array_size);
     if(err!=cudaSuccess) throw std::runtime_error("cuda_allocate_arrays");
 
-    double MemGrid = (double)prms->nGridPitch*sizeof(real)*icy::SimParams::nGridArrays/(1024*1024);
-    double MemPoints = (double)prms->nPtsPitch*sizeof(real)*icy::SimParams::nPtsArrays/(1024*1024);
-    double MemTotal = MemAllocGrid + MemAllocPoints;
+    double MemGrid = (double)model->prms.nGridPitch*sizeof(real)*icy::SimParams3D::nGridArrays/(1024*1024);
+    double MemPoints = (double)model->prms.nPtsPitch*sizeof(real)*icy::SimParams3D::nPtsArrays/(1024*1024);
+    double MemTotal = MemGrid + MemPoints;
     spdlog::info("memory use: grid {:03.2f} Mb; points {:03.2f} Mb ; total {:03.2f} Mb", MemGrid, MemPoints, MemTotal);
     error_code = 0;
     spdlog::info("cuda_allocate_arrays done");
@@ -115,16 +115,15 @@ void CUDART_CB GPU_Implementation4::callback_transfer_from_device_completion(cud
     // simulation data was copied to host memory -> proceed with processing of this data
     GPU_Implementation4 *gpu = reinterpret_cast<GPU_Implementation4*>(userData);
     gpu->model->hostside_data_update_mutex.lock();
-    gpu->transfer_ponts_to_host_finalize(points);
+    gpu->transfer_ponts_to_host_finalize();
     gpu->model->hostside_data_update_mutex.unlock();
     if(gpu->transfer_completion_callback) gpu->transfer_completion_callback();
 }
 
 void GPU_Implementation4::transfer_ponts_to_host_finalize()
 {
-    const std::vector<icy::Point3D> &points = model->points;
-    int pitch = model->prms.nPtsPitch;
-    for(int idx=0;idx<model->prms.nPts;idx++) points[idx].PullFromBuffer(tmp_transfer_buffer, pitch, idx);
+    for(int idx=0;idx<model->prms.nPts;idx++)
+        model->points[idx].PullFromBuffer(tmp_transfer_buffer, model->prms.nPtsPitch, idx);
 
     // add up indenter forces
     Vector3r indenter_force;
@@ -197,11 +196,11 @@ __forceinline__ __device__ void svd3x3(const Matrix3r &A, Matrix3r &_U, Matrix3r
               U[0], U[3], U[6], U[1], U[4], U[7], U[2], U[5], U[8],
               S[0], S[1], S[2],
               V[0], V[3], V[6], V[1], V[4], V[7], V[2], V[5], V[8]);
-    U << U[0], U[1], U[2], U[3], U[4], U[5], U[6], U[7], U[8];
-    S << S[0], 0, 0,
+    _U << U[0], U[1], U[2], U[3], U[4], U[5], U[6], U[7], U[8];
+    _S << S[0], 0, 0,
         0, S[1], 0,
         0, 0, S[2];
-    V << V[0], V[1], V[2], V[3], V[4], V[5], V[6], V[7], V[8];
+    _V << V[0], V[1], V[2], V[3], V[4], V[5], V[6], V[7], V[8];
 }
 
 
@@ -209,7 +208,7 @@ __forceinline__ __device__ Matrix3r KirchhoffStress_Wolper(const Matrix3r &F)
 {
     const real &kappa = gprms.kappa;
     const real &mu = gprms.mu;
-    const real &dim = icy::SimParams3D::dim;
+    const real &dim = 3;
 
     // Kirchhoff stress as per Wolper (2019)
     real Je = F.determinant();
@@ -218,7 +217,7 @@ __forceinline__ __device__ Matrix3r KirchhoffStress_Wolper(const Matrix3r &F)
     return PFt;
 }
 
-__forceinline__ __device__ void Wolper_Drucker_Prager(icy::Point &p)
+__forceinline__ __device__ void Wolper_Drucker_Prager(icy::Point3D &p)
 {
     const Matrix3r &gradV = p.Bp;
     const real &mu = gprms.mu;
@@ -279,7 +278,7 @@ __forceinline__ __device__ void Wolper_Drucker_Prager(icy::Point &p)
 }
 
 
-__forceinline__ __device__ void CheckIfPointIsInsideFailureSurface(icy::Point &p)
+__forceinline__ __device__ void CheckIfPointIsInsideFailureSurface(icy::Point3D &p)
 {
     const Matrix3r &gradV = p.Bp;
     const real &mu = gprms.mu;
@@ -290,12 +289,13 @@ __forceinline__ __device__ void CheckIfPointIsInsideFailureSurface(icy::Point &p
     const real &M_sq = gprms.NACC_Msq;
     constexpr real d = 3; // dimension
 
-    Matrix3r FeTr = (Matrix2r::Identity() + dt*gradV) * p.Fe;
+    Matrix3r FeTr = (Matrix3r::Identity() + dt*gradV) * p.Fe;
     p.Fe = FeTr;
     Matrix3r U, V, Sigma;
     svd3x3(FeTr, U, Sigma, V);
 
     real Je_tr = Sigma(0,0)*Sigma(1,1)*Sigma(2,2);
+    real Je_tr_sq = Je_tr*Je_tr;
     real p_trial = -(kappa/2.) * (Je_tr*Je_tr - 1.);
 
     Matrix3r SigmaSquared = Sigma*Sigma;
@@ -322,7 +322,7 @@ __global__ void kernel_p2g()
     const int &gridZ = gprms.GridZ;
     const real &particle_mass = gprms.ParticleMass;
     const int &nGridPitch = gprms.nGridPitch;
-    const int &nPtsPitch = gprms.nPtsPitch;
+    const int &pitch = gprms.nPtsPitch;
 
     // pull point data from SOA
     const real *buffer = gprms.pts_array;
@@ -340,9 +340,9 @@ __global__ void kernel_p2g()
         }
     }
 
-    char* ptr_intact = buffer[pitch*icy::SimParams3D::idx_intact];
-    q = ptr_intact[pt_idx];
-    Jp_inv = buffer[pt_idx + pitch*icy::SimParams3D::idx_Jp_inv];
+    char* ptr_intact = (char*)(&buffer[pitch*icy::SimParams3D::idx_intact]);
+    char q = ptr_intact[pt_idx];
+    real Jp_inv = buffer[pt_idx + pitch*icy::SimParams3D::idx_Jp_inv];
 
     Matrix3r PFt = KirchhoffStress_Wolper(Fe);
     Matrix3r subterm2 = particle_mass*Bp - (dt*vol*Dinv)*PFt;
@@ -471,7 +471,7 @@ __global__ void kernel_update_nodes(real indenter_x, real indenter_y)
     for(int i=0;i<3;i++) gprms.grid_array[(1+i)*pitch + idx] = velocity[i];
 }
 
-_global__ void kernel_g2p()
+__global__ void kernel_g2p()
 {
     int pt_idx = blockIdx.x * blockDim.x + threadIdx.x;
     const int &nPoints = gprms.nPts;
@@ -482,31 +482,32 @@ _global__ void kernel_g2p()
     const real &h_inv = gprms.cellsize_inv;
     const real &dt = gprms.InitialTimeStep;
     const int &gridX = gprms.GridX;
+    const int &gridY = gprms.GridY;
 
-    icy::Point p;
+    icy::Point3D p;
     p.velocity.setZero();
     p.Bp.setZero();
 
-    const real *buffer = gprms.pts_array;
+    real *buffer = gprms.pts_array;
 
     for(int i=0; i<3; i++)
     {
         p.pos[i] = buffer[pt_idx + pitch_pts*(icy::SimParams3D::posx+i)];
         for(int j=0; i<3; j++)
-            Fe(i,j) = buffer[pt_idx + pitch_pts*(icy::SimParams3D::Fe00 + i*3 + j)];
+            p.Fe(i,j) = buffer[pt_idx + pitch_pts*(icy::SimParams3D::Fe00 + i*3 + j)];
     }
 
-    char* ptr_intact = buffer[pitch_pts*icy::SimParams3D::idx_intact];
+    char* ptr_intact = (char*)(&buffer[pitch_pts*icy::SimParams3D::idx_intact]);
     p.q = ptr_intact[pt_idx];
     p.Jp_inv = buffer[pt_idx + pitch_pts*icy::SimParams3D::idx_Jp_inv];
 
     constexpr real offset = 0.5;  // 0 for cubic; 0.5 for quadratic
-    const int i0 = (int)(pos[0]*h_inv - offset);
-    const int j0 = (int)(pos[1]*h_inv - offset);
-    const int k0 = (int)(pos[2]*h_inv - offset);
+    const int i0 = (int)(p.pos[0]*h_inv - offset);
+    const int j0 = (int)(p.pos[1]*h_inv - offset);
+    const int k0 = (int)(p.pos[2]*h_inv - offset);
 
     Vector3r base_coord(i0,j0,k0);
-    Vector3r f = pos*h_inv - base_coord;
+    Vector3r f = p.pos*h_inv - base_coord;
 
     Array3r arr_v0 = 1.5-f.array();
     Array3r arr_v1 = f.array() - 1.0;
@@ -535,16 +536,16 @@ _global__ void kernel_g2p()
 
     // distribute the values of p back into GPU memory: pos, velocity, BP, Fe, Jp_inv, q
     ptr_intact[pt_idx] = p.q;
-    buffer[pt_idx + pitch*icy::SimParams3D::idx_Jp_inv] = p.Jp_inv;
+    buffer[pt_idx + pitch_pts*icy::SimParams3D::idx_Jp_inv] = p.Jp_inv;
 
     for(int i=0; i<3; i++)
     {
-        buffer[pt_idx + pitch*(icy::SimParams3D::posx+i)] = p.pos[i];
-        buffer[pt_idx + pitch*(icy::SimParams3D::velx+i)] = p.velocity[i];
+        buffer[pt_idx + pitch_pts*(icy::SimParams3D::posx+i)] = p.pos[i];
+        buffer[pt_idx + pitch_pts*(icy::SimParams3D::velx+i)] = p.velocity[i];
         for(int j=0; i<3; j++)
         {
-            buffer[pt_idx + pitch*(icy::SimParams3D::Fe00 + i*3 + j)] = p.Fe(i,j);
-            buffer[pt_idx + pitch*(icy::SimParams3D::Bp00 + i*3 + j)] = p.Bp(i,j);
+            buffer[pt_idx + pitch_pts*(icy::SimParams3D::Fe00 + i*3 + j)] = p.Fe(i,j);
+            buffer[pt_idx + pitch_pts*(icy::SimParams3D::Bp00 + i*3 + j)] = p.Bp(i,j);
         }
     }
 }
@@ -563,8 +564,18 @@ __global__ void kernel_hello()
     _V << -0.039942, 0.703452, 0.70962, 0.182265, 0.7034, -0.687028, -0.982438, 0.101898, -0.15631;
 
     svd3x3(M,U,S,V);
-    std::cout << "result of svd\nU:\n" << U << "\nS:\n" << S << "\nV:\n" << V << std::endl;
-    std::cout << "\nresult should be\nU:\n" << _U << "\nS:\n" << _S << "\nV:\n" << _V << std::endl;
+    printf("result of svd\nU:\n");
+    for(int i=0;i<3;i++) { for(int j=0;j<3;j++) printf("%f ;",U(i,j)); printf("\n"); }
+    printf("\nS:\n");
+    for(int i=0;i<3;i++) { for(int j=0;j<3;j++) printf("%f ;",S(i,j)); printf("\n"); }
+    printf("\nV:\n");
+    for(int i=0;i<3;i++) { for(int j=0;j<3;j++) printf("%f ;",V(i,j)); printf("\n"); }
+    printf("\nresult should be\nU:\n");
+    for(int i=0;i<3;i++) { for(int j=0;j<3;j++) printf("%f ;",_U(i,j)); printf("\n"); }
+    printf("\nS:\n");
+    for(int i=0;i<3;i++) { for(int j=0;j<3;j++) printf("%f ;",_S(i,j)); printf("\n"); }
+    printf("\nV:\n");
+    for(int i=0;i<3;i++) { for(int j=0;j<3;j++) printf("%f ;",_V(i,j)); printf("\n"); }
 }
 
 

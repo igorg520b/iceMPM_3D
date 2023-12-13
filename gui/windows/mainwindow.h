@@ -40,11 +40,10 @@
 
 #include "objectpropertybrowser.h"
 #include "vtk_representation.h"
-#include "model.h"
+#include "model_3d.h"
 #include "parameters_wrapper.h"
 #include "backgroundworker.h"
 #include "snapshotmanager.h"
-#include "pointselector2d.h"
 
 #include <fstream>
 #include <iomanip>
@@ -65,7 +64,7 @@ public:
     ~MainWindow();
     void closeEvent( QCloseEvent* event ) override;
     //void showEvent( QShowEvent* event ) override;
-    icy::Model model;
+    icy::Model3D model;
 
 private Q_SLOTS:
     void quit_triggered();
@@ -81,7 +80,6 @@ private Q_SLOTS:
 
     void sliderValueChanged(int val);
     void comboboxIndexChanged_visualizations(int index);
-    void point_selection(double x, double y);
     void createVideo_triggered();
     void screenshot_triggered();
     void limits_changed(double val);
@@ -93,7 +91,7 @@ private:
     void save_binary_data();
     BackgroundWorker *worker;
     icy::VisualRepresentation representation;
-    icy::SnapshotManager snapshot;
+//    icy::SnapshotManager snapshot;
     ParamsWrapper *params;
 
     QString settingsFileName;       // includes current dir
@@ -111,8 +109,6 @@ private:
     vtkNew<vtkGenericOpenGLRenderWindow> renderWindow;
     QVTKOpenGLNativeWidget *qt_vtk_widget;
     vtkNew<vtkRenderer> renderer;
-//    vtkNew<vtkInteractorStyleRubberBand2D> rubberBand;
-    vtkNew<PointSelector2D> pointSelector;
 
     // other
     int OpenFile(QString fileName);

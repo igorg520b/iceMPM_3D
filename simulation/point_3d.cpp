@@ -17,7 +17,7 @@ void icy::Point3D::Reset()
 
 void icy::Point3D::TransferToBuffer(real *buffer, const int pitch, const int point_index) const
 {
-    char* ptr_intact = buffer[pitch*icy::SimParams3D::idx_intact];
+    char* ptr_intact = (char*)(&buffer[pitch*icy::SimParams3D::idx_intact]);
     ptr_intact[point_index] = q;
 
     buffer[point_index + pitch*icy::SimParams3D::idx_Jp_inv] = Jp_inv;
@@ -36,7 +36,7 @@ void icy::Point3D::TransferToBuffer(real *buffer, const int pitch, const int poi
 
 void icy::Point3D::PullFromBuffer(const real *buffer, const int pitch, const int point_index)
 {
-    char* ptr_intact = buffer[pitch*icy::SimParams3D::idx_intact];
+    char* ptr_intact = (char*)(&buffer[pitch*icy::SimParams3D::idx_intact]);
     q = ptr_intact[point_index];
     Jp_inv = buffer[point_index + pitch*icy::SimParams3D::idx_Jp_inv];
 
