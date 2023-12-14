@@ -4,6 +4,7 @@
 #include <Eigen/LU>
 #include <Eigen/Core>
 
+#include <spdlog/spdlog.h>
 
 void icy::Point3D::Reset()
 {
@@ -26,7 +27,7 @@ void icy::Point3D::TransferToBuffer(real *buffer, const int pitch, const int poi
     {
         buffer[point_index + pitch*(icy::SimParams3D::posx+i)] = pos[i];
         buffer[point_index + pitch*(icy::SimParams3D::velx+i)] = velocity[i];
-        for(int j=0; i<3; j++)
+        for(int j=0; j<3; j++)
         {
             buffer[point_index + pitch*(icy::SimParams3D::Fe00 + i*3 + j)] = Fe(i,j);
             buffer[point_index + pitch*(icy::SimParams3D::Bp00 + i*3 + j)] = Bp(i,j);

@@ -46,14 +46,15 @@ icy::VisualRepresentation::VisualRepresentation()
 //    actor_indenter->GetProperty()->LightingOff();
     actor_indenter->GetProperty()->EdgeVisibilityOn();
     actor_indenter->GetProperty()->VertexVisibilityOff();
-    actor_indenter->GetProperty()->SetColor(0.2,0.1,0.1);
+    actor_indenter->GetProperty()->SetColor(0.3,0.1,0.1);
     actor_indenter->GetProperty()->SetEdgeColor(90.0/255.0, 90.0/255.0, 97.0/255.0);
 //    actor_indenter->GetProperty()->ShadingOff();
 //    actor_indenter->GetProperty()->SetInterpolationToFlat();
     actor_indenter->PickableOff();
     actor_indenter->GetProperty()->SetLineWidth(3);
 //    actor_indenter->RotateX(90);
-    actor_indenter->RotateY(90);
+    actor_indenter->RotateZ(90);
+    actor_indenter->RotateX(90);
 
 
     points_polydata->SetPoints(points);
@@ -70,12 +71,13 @@ icy::VisualRepresentation::VisualRepresentation()
 
     actor_points->SetMapper(points_mapper);
     actor_points->GetProperty()->SetPointSize(2);
-    actor_points->GetProperty()->SetVertexColor(1,0,0);
-    actor_points->GetProperty()->SetColor(0,0,0);
+    actor_points->GetProperty()->SetVertexColor(1.,1.,0);
+    actor_points->GetProperty()->SetColor(0.1,0.1,0.4);
 //    actor_points->GetProperty()->LightingOff();
 //    actor_points->GetProperty()->ShadingOff();
 //    actor_points->GetProperty()->SetInterpolationToFlat();
     actor_points->PickableOff();
+//    actor_points->GetProperty()->RenderPointsAsSpheresOn();
 
 
     grid_mapper->SetInputData(structuredGrid);
@@ -160,8 +162,9 @@ void icy::VisualRepresentation::SynchronizeValues()
     for(int i=0;i<model->points.size();i++)
     {
         const icy::Point3D &p = model->points[i];
-        double x[3] {p.pos[0], p.pos[1], p.pos[3]};
-        points->SetPoint((vtkIdType)i, x);
+//        double x[3] {p.pos[0], p.pos[1], p.pos[2]};
+//        points->SetPoint((vtkIdType)i, x);
+        points->SetPoint((vtkIdType)i, p.pos[0], p.pos[1], p.pos[2]);
       }
 
     double centerVal = 0;
@@ -173,6 +176,8 @@ void icy::VisualRepresentation::SynchronizeValues()
     if(VisualizingVariable == VisOpt::none)
     {
         for(int i=0;i<model->points.size();i++) visualized_values->SetValue((vtkIdType)i, 0);
+        points_mapper->UseLookupTableScalarRangeOff();
+
     }
     else if(VisualizingVariable == VisOpt::NACC_case)
     {
@@ -196,9 +201,13 @@ void icy::VisualRepresentation::SynchronizeValues()
     points->Modified();
     visualized_values->Modified();
     points_filter->Update();
-//    indenterSource->SetCenter(model->prms.indenter_x, model->prms.indenter_y,
-//                              model->prms.GridZ*model->prms.cellsize/2);
-    indenterSource->SetCenter(model->prms.indenter_x, model->prms.indenter_y,0);
+//    indenterSource->SetCenter(, ,
+//                              );
+//    indenterSource->SetCenter(model->prms.indenter_x, model->prms.indenter_y,0);
+    double indenter_x = model->prms.indenter_x;
+    double indenter_y = model->prms.indenter_y;
+    double indenter_z = model->prms.GridZ*model->prms.cellsize/2;
+    indenterSource->SetCenter(indenter_y, indenter_z, indenter_x);  // y z x
 }
 
 

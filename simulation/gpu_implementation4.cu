@@ -82,13 +82,15 @@ void GPU_Implementation4::cuda_allocate_arrays(size_t nGridNodes, size_t nPoints
 void GPU_Implementation4::transfer_ponts_to_device()
 {
     const std::vector<icy::Point3D> &points = model->points;
-    int pitch = model->prms.nPtsPitch;
+    const int pitch = model->prms.nPtsPitch;
+    if(points.size() > model->prms.nPts) throw std::out_of_range("transfer_points_to_device");
     for(int idx=0;idx<model->prms.nPts;idx++) points[idx].TransferToBuffer(tmp_transfer_buffer, pitch, idx);
 
     // transfer point data to device
     cudaError_t err = cudaMemcpy(model->prms.pts_array, tmp_transfer_buffer,
                      pitch*sizeof(real)*icy::SimParams3D::nPtsArrays, cudaMemcpyHostToDevice);
     if(err != cudaSuccess) throw std::runtime_error("transfer_points_to_device");
+    spdlog::info("GPU_Implementation4::transfer_ponts_to_device() done");
 }
 
 void GPU_Implementation4::cuda_transfer_from_device()
@@ -337,7 +339,7 @@ __global__ void kernel_p2g()
     {
         pos[i] = buffer[pt_idx + pitch*(icy::SimParams3D::posx+i)];
         velocity[i] = buffer[pt_idx + pitch*(icy::SimParams3D::velx+i)];
-        for(int j=0; i<3; j++)
+        for(int j=0; j<3; j++)
         {
             Fe(i,j) = buffer[pt_idx + pitch*(icy::SimParams3D::Fe00 + i*3 + j)];
             Bp(i,j) = buffer[pt_idx + pitch*(icy::SimParams3D::Bp00 + i*3 + j)];
@@ -497,7 +499,7 @@ __global__ void kernel_g2p()
     for(int i=0; i<3; i++)
     {
         p.pos[i] = buffer[pt_idx + pitch_pts*(icy::SimParams3D::posx+i)];
-        for(int j=0; i<3; j++)
+        for(int j=0; j<3; j++)
             p.Fe(i,j) = buffer[pt_idx + pitch_pts*(icy::SimParams3D::Fe00 + i*3 + j)];
     }
 
@@ -546,7 +548,7 @@ __global__ void kernel_g2p()
     {
         buffer[pt_idx + pitch_pts*(icy::SimParams3D::posx+i)] = p.pos[i];
         buffer[pt_idx + pitch_pts*(icy::SimParams3D::velx+i)] = p.velocity[i];
-        for(int j=0; i<3; j++)
+        for(int j=0; j<3; j++)
         {
             buffer[pt_idx + pitch_pts*(icy::SimParams3D::Fe00 + i*3 + j)] = p.Fe(i,j);
             buffer[pt_idx + pitch_pts*(icy::SimParams3D::Bp00 + i*3 + j)] = p.Bp(i,j);
@@ -580,15 +582,6 @@ __global__ void kernel_hello()
     for(int i=0;i<3;i++) { for(int j=0;j<3;j++) printf("%f ;",USVT(i,j)); printf("\n"); }
     printf("\nM:\n");
     for(int i=0;i<3;i++) { for(int j=0;j<3;j++) printf("%f ;",M(i,j)); printf("\n"); }
-
-    /*
-    printf("\nresult should be\nU:\n");
-    for(int i=0;i<3;i++) { for(int j=0;j<3;j++) printf("%f ;",_U(i,j)); printf("\n"); }
-    printf("\nS:\n");
-    for(int i=0;i<3;i++) { for(int j=0;j<3;j++) printf("%f ;",_S(i,j)); printf("\n"); }
-    printf("\nV:\n");
-    for(int i=0;i<3;i++) { for(int j=0;j<3;j++) printf("%f ;",_V(i,j)); printf("\n"); }
-*/
 }
 
 

@@ -21,7 +21,6 @@ MainWindow::MainWindow(QWidget *parent)
     worker = new BackgroundWorker(&model);
 //    snapshot.model = &model;
     model.gpu.initialize();
-    model.gpu.test();
     representation.model = &model;
 
     // VTK
@@ -90,6 +89,7 @@ MainWindow::MainWindow(QWidget *parent)
     renderer->AddActor(representation.actor_indenter);
     renderer->AddActor(representation.actorText);
     renderer->AddActor(representation.scalarBar);
+    renderer->AddActor(representation.actor_axes);
 
 
     // populate combobox
@@ -118,9 +118,6 @@ MainWindow::MainWindow(QWidget *parent)
             camera->SetViewUp(data[6],data[7],data[8]);
             camera->SetViewAngle(data[9]);
             camera->SetClippingRange(1e-3,1e5);
-            qDebug() << "camera position restored";
-            spdlog::info("camdata load {}, {}, {}, {}, {}, {},{}, {}, {}, {}",
-                         data[0],data[1],data[2],data[3],data[4],data[5],data[6],data[7],data[8],data[9]);
         }
 
 
@@ -207,7 +204,6 @@ void MainWindow::closeEvent(QCloseEvent* event)
     event->accept();
 }
 
-
 void MainWindow::quit_triggered()
 {
     qDebug() << "MainWindow::quit_triggered() ";
@@ -223,8 +219,6 @@ void MainWindow::quit_triggered()
     data[9]=renderer->GetActiveCamera()->GetViewAngle();
     QByteArray arr((char*)data, sizeof(data));
     settings.setValue("camData", arr);
-    spdlog::info("camdata {}, {}, {}, {}, {}, {},{}, {}, {}, {}",
-                 data[0],data[1],data[2],data[3],data[4],data[5],data[6],data[7],data[8],data[9]);
 
     QByteArray ranges((char*)representation.ranges, sizeof(representation.ranges));
     settings.setValue("visualization_ranges", ranges);

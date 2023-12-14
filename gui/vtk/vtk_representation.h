@@ -32,6 +32,8 @@
 
 #include <vtkRegularPolygonSource.h>
 #include <vtkCylinderSource.h>
+#include <vtkAxesActor.h>
+
 
 
 
@@ -62,6 +64,7 @@ public:
     vtkNew<vtkScalarBarActor> scalarBar;
 
     vtkNew<vtkTextActor> actorText;
+    vtkNew<vtkAxesActor> actor_axes;
 
 private:
     vtkNew<vtkLookupTable> hueLut_pastel, hueLut_four;

@@ -74,11 +74,12 @@ void icy::Model3D::Reset()
     const real &bz = prms.IceBlockDimZ;
     const real &bvol = bx*by*bz;
     const real &h = prms.cellsize;
-    const real &magic_constant = 0.25;
+    constexpr real magic_constant = 0.5844;
 
     const real z_center = prms.GridZ*h/2;
     const real block_z_min = std::max(z_center - bz/2, 0.0);
     const real block_z_max = std::min(z_center + bz/2, prms.GridZ*h);
+    spdlog::info("block_z_range [{}, {}]", block_z_min, block_z_max);
     const real kRadius = cbrt(magic_constant*bvol/prms.PointsWanted);
     const std::array<real, 3>kXMin{5.0*h, 2.0*h, block_z_min};
     const std::array<real, 3>kXMax{5.0*h+bx, 2.0*h+by, block_z_max};
@@ -132,5 +133,6 @@ void icy::Model3D::Prepare()
     spdlog::info("icy::Model::Prepare()");
     abortRequested = false;
     gpu.cuda_update_constants();
+    spdlog::info("icy::Model::Prepare() done");
 }
 
