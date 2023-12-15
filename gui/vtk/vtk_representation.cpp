@@ -122,7 +122,6 @@ void icy::VisualRepresentation::SynchronizeTopology()
     points->SetNumberOfPoints(model->points.size());
     visualized_values->SetNumberOfValues(model->points.size());
     points_polydata->GetPointData()->SetActiveScalars("visualized_values");
-    points_mapper->ScalarVisibilityOn();
     points_mapper->SetColorModeToMapScalars();
 
     SynchronizeValues();
@@ -148,8 +147,8 @@ void icy::VisualRepresentation::SynchronizeTopology()
     structuredGrid->SetPoints(grid_points);
 
     indenterSource->SetRadius(model->prms.IndDiameter/2.f);
-    indenterSource->SetHeight(1.5);
-    indenterSource->SetResolution(100);
+    indenterSource->SetHeight(model->prms.IceBlockDimZ);
+    indenterSource->SetResolution(33);
 }
 
 
@@ -162,8 +161,6 @@ void icy::VisualRepresentation::SynchronizeValues()
     for(int i=0;i<model->points.size();i++)
     {
         const icy::Point3D &p = model->points[i];
-//        double x[3] {p.pos[0], p.pos[1], p.pos[2]};
-//        points->SetPoint((vtkIdType)i, x);
         points->SetPoint((vtkIdType)i, p.pos[0], p.pos[1], p.pos[2]);
       }
 
@@ -175,18 +172,22 @@ void icy::VisualRepresentation::SynchronizeValues()
 
     if(VisualizingVariable == VisOpt::none)
     {
-        for(int i=0;i<model->points.size();i++) visualized_values->SetValue((vtkIdType)i, 0);
-        points_mapper->UseLookupTableScalarRangeOff();
+        points_mapper->ScalarVisibilityOff();
 
+        //points_mapper->UseLookupTableScalarRangeOff();
     }
     else if(VisualizingVariable == VisOpt::NACC_case)
     {
+        points_mapper->ScalarVisibilityOn();
+
         for(int i=0;i<model->points.size();i++) visualized_values->SetValue((vtkIdType)i, model->points[i].q);
         points_mapper->SetLookupTable(hueLut_four);
         scalarBar->SetLookupTable(hueLut_four);
     }
     else if(VisualizingVariable == VisOpt::Jp)
     {
+        points_mapper->ScalarVisibilityOn();
+
         for(int i=0;i<model->points.size();i++) visualized_values->SetValue((vtkIdType)i, model->points[i].Jp_inv-1);
     }
 
@@ -201,9 +202,7 @@ void icy::VisualRepresentation::SynchronizeValues()
     points->Modified();
     visualized_values->Modified();
     points_filter->Update();
-//    indenterSource->SetCenter(, ,
-//                              );
-//    indenterSource->SetCenter(model->prms.indenter_x, model->prms.indenter_y,0);
+
     double indenter_x = model->prms.indenter_x;
     double indenter_y = model->prms.indenter_y;
     double indenter_z = model->prms.GridZ*model->prms.cellsize/2;

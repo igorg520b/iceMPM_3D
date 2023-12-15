@@ -1,21 +1,19 @@
 {
 "OutputDirectory":"cm_output1",
-"ParticleViewSize":3.5,
+"ParticleViewSize":2.0,
 "InitialTimeStep":1.0e-5,
-"PointsWanted":100000,
-"GridX":256,
-"GridY":110,
+"PointsWanted":500000,
+"GridX":64,
+"GridY":27,
+"GridZ":38,
 "GridXDimension":3.3,
-"HoldBlockOnTheRight":2,
 
 "YoungsModulus":5.0e8,
 "NACC_max_strain":0.01,
 "IceCompressiveStrength":100e6,
 "IceTensileStrength":10e6,
 "IceShearStrength":4.5e6,
-"DP_cc":15000,
 "DP_phi":69,
-
 
 "SimulationEndTime":12,
 "PoissonsRatio":0.3,

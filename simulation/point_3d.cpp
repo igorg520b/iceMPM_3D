@@ -45,7 +45,7 @@ void icy::Point3D::PullFromBuffer(const real *buffer, const int pitch, const int
     {
         pos[i] = buffer[point_index + pitch*(icy::SimParams3D::posx+i)];
         velocity[i] = buffer[point_index + pitch*(icy::SimParams3D::velx+i)];
-        for(int j=0; i<3; j++)
+        for(int j=0; j<3; j++)
         {
             Fe(i,j) = buffer[point_index + pitch*(icy::SimParams3D::Fe00 + i*3 + j)];
             Bp(i,j) = buffer[point_index + pitch*(icy::SimParams3D::Bp00 + i*3 + j)];

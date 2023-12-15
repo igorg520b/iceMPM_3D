@@ -95,6 +95,7 @@ void GPU_Implementation4::transfer_ponts_to_device()
 
 void GPU_Implementation4::cuda_transfer_from_device()
 {
+    spdlog::info("GPU_Implementation4::cuda_transfer_from_device()");
     cudaError_t err = cudaMemcpyAsync(tmp_transfer_buffer, model->prms.pts_array,
                           model->prms.nPtsPitch*sizeof(real)*icy::SimParams3D::nPtsArrays,
                           cudaMemcpyDeviceToHost, streamCompute);
@@ -110,23 +111,28 @@ void GPU_Implementation4::cuda_transfer_from_device()
 
     void* userData = reinterpret_cast<void*>(this);
     cudaStreamAddCallback(streamCompute, GPU_Implementation4::callback_transfer_from_device_completion, userData, 0);
+    spdlog::info("GPU_Implementation4::cuda_transfer_from_device() done and callback placed");
 }
 
 void CUDART_CB GPU_Implementation4::callback_transfer_from_device_completion(cudaStream_t stream, cudaError_t status, void *userData)
 {
+    spdlog::info("GPU_Implementation4::callback_transfer_from_device_completion");
     // simulation data was copied to host memory -> proceed with processing of this data
     GPU_Implementation4 *gpu = reinterpret_cast<GPU_Implementation4*>(userData);
-    gpu->model->hostside_data_update_mutex.lock();
     gpu->transfer_ponts_to_host_finalize();
-    gpu->model->hostside_data_update_mutex.unlock();
     if(gpu->transfer_completion_callback) gpu->transfer_completion_callback();
+    spdlog::info("GPU_Implementation4::callback_transfer_from_device_completion done");
 }
 
 void GPU_Implementation4::transfer_ponts_to_host_finalize()
 {
+    spdlog::info("GPU_Implementation4::transfer_ponts_to_host_finalize()");
+    model->hostside_data_update_mutex.lock();
     for(int idx=0;idx<model->prms.nPts;idx++)
         model->points[idx].PullFromBuffer(tmp_transfer_buffer, model->prms.nPtsPitch, idx);
+    model->hostside_data_update_mutex.unlock();
 
+    spdlog::info("transfer_ponts_to_host_finalize() data pulled from buffer");
     // add up indenter forces
     Vector3r indenter_force;
     indenter_force.setZero();
@@ -135,10 +141,12 @@ void GPU_Implementation4::transfer_ponts_to_host_finalize()
             indenter_force[j] += host_side_indenter_force_accumulator[j+i*3];
     indenter_force /= model->prms.UpdateEveryNthStep;
     model->indenter_force_history.push_back(indenter_force);
+    spdlog::info("GPU_Implementation4::transfer_ponts_to_host_finalize() done");
 }
 
 void GPU_Implementation4::cuda_reset_grid()
 {
+    spdlog::info("GPU_Implementation4::cuda_reset_grid()");
     cudaError_t err = cudaMemsetAsync(model->prms.grid_array, 0,
                                       model->prms.nGridPitch*icy::SimParams3D::nGridArrays*sizeof(real), streamCompute);
     if(err != cudaSuccess) throw std::runtime_error("cuda_reset_grid error");
@@ -153,32 +161,51 @@ void GPU_Implementation4::cuda_reset_indenter_force_accumulator()
 
 void GPU_Implementation4::cuda_p2g()
 {
+    spdlog::info("GPU_Implementation4::cuda_p2g()");
     const int nPoints = model->prms.nPts;
     int tpb = model->prms.tpb_P2G;
     int blocksPerGrid = (nPoints + tpb - 1) / tpb;
     kernel_p2g<<<blocksPerGrid, tpb, 0, streamCompute>>>();
+
     cudaError_t err = cudaGetLastError();
-    if(err != cudaSuccess) throw std::runtime_error("cuda_p2g");
+    if(err != cudaSuccess)
+    {
+        const char* errorDescription = cudaGetErrorString(err);
+        spdlog::critical("p2g error {}, {}", err, errorDescription);
+        throw std::runtime_error("cuda_p2g");
+    }
 }
 
 void GPU_Implementation4::cuda_update_nodes(real indenter_x, real indenter_y)
 {
+    spdlog::info("GPU_Implementation4::cuda_update_nodes; ind [{}, {}]", indenter_x, indenter_y);
     const int nGridNodes = model->prms.GridTotal;
     int tpb = model->prms.tpb_Upd;
     int blocksPerGrid = (nGridNodes + tpb - 1) / tpb;
     kernel_update_nodes<<<blocksPerGrid, tpb, 0, streamCompute>>>(indenter_x, indenter_y);
     cudaError_t err = cudaGetLastError();
-    if(err != cudaSuccess) throw std::runtime_error("cuda_update_nodes");
+    if(err != cudaSuccess)
+    {
+        const char* errorDescription = cudaGetErrorString(err);
+        spdlog::critical("cuda_update_nodes cuda error {}, {}", err, errorDescription);
+        throw std::runtime_error("cuda_update_nodes");
+    }
 }
 
 void GPU_Implementation4::cuda_g2p()
 {
+    spdlog::info("GPU_Implementation4::cuda_g2p()");
     const int nPoints = model->prms.nPts;
     int tpb = model->prms.tpb_G2P;
     int blocksPerGrid = (nPoints + tpb - 1) / tpb;
     kernel_g2p<<<blocksPerGrid, tpb, 0, streamCompute>>>();
     cudaError_t err = cudaGetLastError();
-    if(err != cudaSuccess) throw std::runtime_error("cuda_g2p");
+    if(err != cudaSuccess)
+    {
+        const char* errorDescription = cudaGetErrorString(err);
+        spdlog::critical("g2p error {}, {}", err, errorDescription);
+        throw std::runtime_error("cuda_g2p");
+    }
 }
 
 
@@ -412,7 +439,7 @@ __global__ void kernel_update_nodes(real indenter_x, real indenter_y)
     Vector3r velocity(gprms.grid_array[pitch+idx], gprms.grid_array[2*pitch+idx], gprms.grid_array[3*pitch+idx]);
     velocity /= mass;
     velocity[1] -= dt*gravity;
-    const real vmax = 0.9*cellsize/dt;
+    const real vmax = 0.5*cellsize/dt;
     if(velocity.norm() > vmax) velocity = velocity.normalized()*vmax;
 
     // x-y-z index of the grid node
@@ -466,13 +493,13 @@ __global__ void kernel_update_nodes(real indenter_x, real indenter_y)
     int blocksGridX = gprms.IceBlockDimX*gprms.cellsize_inv+5-2;
     int blocksGridY = gprms.IceBlockDimY/2*gprms.cellsize_inv+2;
     int blocksGridZ = gprms.IceBlockDimZ*gprms.cellsize_inv+5-2;
-
+/*
     if(idx_y < blocksGridY &&
         ((idx_x <= 7 && idx_x > 4)||
         (idx_z <= 7 && idx_z > 4)||
         (idx_x >= blocksGridX && idx_x <= blocksGridX + 2)||
         (idx_z >= blocksGridZ && idx_z <= blocksGridZ + 2))) velocity.setZero();
-
+*/
     // write the updated grid velocity back to memory
     for(int i=0;i<3;i++) gprms.grid_array[(1+i)*pitch + idx] = velocity[i];
 }
@@ -486,6 +513,7 @@ __global__ void kernel_g2p()
     const int &pitch_pts = gprms.nPtsPitch;
     const int &pitch_grid = gprms.nGridPitch;
     const real &h_inv = gprms.cellsize_inv;
+    const real &h = gprms.cellsize;
     const real &dt = gprms.InitialTimeStep;
     const int &gridX = gprms.GridX;
     const int &gridY = gprms.GridY;
@@ -524,19 +552,21 @@ __global__ void kernel_g2p()
         for (int j=0; j<3; j++)
             for (int k=0; k<3;k++)
         {
-            Vector3r dpos(i-f[0], j-f[1],k-f[2]);  // note the absence of multiplicaiton by h
             real weight = ww[i][0]*ww[j][1]*ww[k][2];
 
             int idx_gridnode = (i+i0) + (j+j0)*gridX + (k+k0)*gridX*gridY;
             Vector3r node_velocity;
             for(int idx=0;idx<3;idx++) node_velocity[idx] = gprms.grid_array[(idx+1)*pitch_grid + idx_gridnode];
             p.velocity += weight * node_velocity;
+            Vector3r dpos(i-f[0], j-f[1],k-f[2]);  // note the absence of multiplicaiton by h
             p.Bp += (4.*h_inv)*weight *(node_velocity*dpos.transpose());
         }
 
     // Advection
     p.pos += dt * p.velocity;
 
+//    Matrix3r FeTr = (Matrix3r::Identity() + gprms.InitialTimeStep*p.Bp) * p.Fe;
+//    p.Fe = FeTr;
     if(p.q == 0) CheckIfPointIsInsideFailureSurface(p);
     else Wolper_Drucker_Prager(p);
 

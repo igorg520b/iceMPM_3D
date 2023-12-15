@@ -37,7 +37,7 @@ public:
     constexpr static size_t idx_intact = 0;
     constexpr static size_t idx_Jp_inv = 1;
     constexpr static size_t posx = 2;
-    constexpr static size_t velx = posx + 1;
+    constexpr static size_t velx = posx + 3;
     constexpr static size_t Fe00 = velx+3;
     constexpr static size_t Bp00 = Fe00+9;
     constexpr static size_t nPtsArrays = Bp00 + 9;

@@ -12,7 +12,6 @@ icy::Model3D::Model3D()
 
 bool icy::Model3D::Step()
 {
-    /*
     real simulation_time = prms.SimulationTime;
     std::cout << '\n';
     spdlog::info("step {} ({}) started; sim_time {:.3}", prms.SimulationStep, prms.SimulationStep/prms.UpdateEveryNthStep, simulation_time);
@@ -31,10 +30,12 @@ bool icy::Model3D::Step()
         simulation_time += prms.InitialTimeStep;
     } while((prms.SimulationStep+count_unupdated_steps) % prms.UpdateEveryNthStep != 0);
     if(prms.SimulationStep % (prms.UpdateEveryNthStep*2) == 0) cudaEventRecord(gpu.eventCycleStop);
+    spdlog::info("cycle loop completed for step {}",prms.SimulationStep);
 
     processing_current_cycle_data.lock();   // if locked, previous results are not yet processed by the host
 
     gpu.cuda_transfer_from_device();
+    spdlog::info("went past cuda_transfer_from_device()");
 
     if(prms.SimulationStep % (prms.UpdateEveryNthStep*2) != 0)
     {
@@ -47,8 +48,6 @@ bool icy::Model3D::Step()
     prms.SimulationTime = simulation_time;
     prms.SimulationStep += count_unupdated_steps;
     return (prms.SimulationTime < prms.SimulationEndTime && !gpu.error_code);
-*/
-    return false;
 }
 
 
