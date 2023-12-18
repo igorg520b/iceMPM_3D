@@ -52,3 +52,22 @@ void icy::Point3D::PullFromBuffer(const real *buffer, const int pitch, const int
         }
     }
 }
+
+Vector3r icy::Point3D::getPos(const real *buffer, const int pitch, const int point_index)
+{
+    Vector3r result;
+    for(int i=0; i<3; i++) result[i] = buffer[point_index + pitch*(icy::SimParams3D::posx+i)];
+    return result;
+}
+
+char icy::Point3D::getQ(const real *buffer, const int pitch, const int point_index)
+{
+    char* ptr_intact = (char*)(&buffer[pitch*icy::SimParams3D::idx_intact]);
+    return ptr_intact[point_index];
+}
+
+double icy::Point3D::getJp_inv(const real *buffer, const int pitch, const int point_index)
+{
+    return buffer[point_index + pitch*icy::SimParams3D::idx_Jp_inv];
+}
+

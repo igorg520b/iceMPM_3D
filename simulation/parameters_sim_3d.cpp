@@ -7,6 +7,7 @@ void icy::SimParams3D::Reset()
     grid_array = nullptr;
     pts_array = nullptr;
     indenter_force_accumulator = nullptr;
+    nPts = 0;
 
     InitialTimeStep = 3.e-5;
     YoungsModulus = 5.e8;

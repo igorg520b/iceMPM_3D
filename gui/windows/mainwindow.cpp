@@ -17,6 +17,7 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
+    model.prms.Reset();
     params = new ParamsWrapper(&model.prms);
     worker = new BackgroundWorker(&model);
     snapshot.model = &model;
@@ -87,8 +88,7 @@ MainWindow::MainWindow(QWidget *parent)
     renderer->AddActor(representation.actor_indenter);
     renderer->AddActor(representation.actorText);
     renderer->AddActor(representation.scalarBar);
-    renderer->AddActor(representation.actor_axes);
-
+//    renderer->AddActor(representation.actor_axes);
 
     // populate combobox
     QMetaEnum qme = QMetaEnum::fromType<icy::VisualRepresentation::VisOpt>();
@@ -124,19 +124,6 @@ MainWindow::MainWindow(QWidget *parent)
         {
             QByteArray ba = var.toByteArray();
             memcpy(representation.ranges, ba.constData(), ba.size());
-        }
-
-        var = settings.value("lastParameterFile");
-        if(!var.isNull())
-        {
-            qLastParameterFile = var.toString();
-            QFile paramFile(qLastParameterFile);
-            if(paramFile.exists())
-            {
-                this->outputDirectory = model.prms.ParseFile(qLastParameterFile.toStdString());
-                this->setWindowTitle(qLastParameterFile);
-                model.Reset();
-            }
         }
 
         comboBox_visualizations->setCurrentIndex(settings.value("vis_option").toInt());
@@ -181,7 +168,6 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionScreenshot, &QAction::triggered, this, &MainWindow::screenshot_triggered);
     connect(ui->actionStart_Pause, &QAction::triggered, this, &MainWindow::simulation_start_pause);
     connect(ui->actionLoad_Parameters, &QAction::triggered, this, &MainWindow::load_parameter_triggered);
-    connect(ui->actionReset, &QAction::triggered, this, &MainWindow::simulation_reset_triggered);
 
     connect(ui->actionExport_Indenter_Forces, &QAction::triggered, this, &MainWindow::export_indenter_force_triggered);
 
@@ -273,17 +259,6 @@ void MainWindow::sliderValueChanged(int val)
     stringFileName = QString::fromStdString(snapshot.path) + "/"+stringFileName;
     OpenFile(stringFileName);
 */
-}
-
-
-
-
-void MainWindow::simulation_reset_triggered()
-{
-    model.ResetToStep0();
-    representation.SynchronizeTopology();
-    updateGUI();
-    renderWindow->Render();
 }
 
 
@@ -391,7 +366,7 @@ void MainWindow::updateGUI()
 {
  //   if(worker->running) statusLabel->setText("simulation is running");
  //   else statusLabel->setText("simulation is stopped");
-    labelStepCount->setText(QString::number(model.prms.SimulationStep));
+    labelStepCount->setText(QString::number(model.prms.AnimationFrameNumber()));
     labelElapsedTime->setText(QString("%1 s").arg(model.prms.SimulationTime,0,'f',3));
     statusLabel->setText(QString("per cycle: %1 ms").arg(model.compute_time_per_cycle,0,'f',3));
 
@@ -453,18 +428,13 @@ void MainWindow::save_snapshot_triggered()
 
 void MainWindow::open_snapshot_triggered()
 {
-    /*
     QString qFileName = QFileDialog::getOpenFileName(this, "Open Simulation Snapshot", QDir::currentPath(), "HDF5 Files (*.h5)");
     if(qFileName.isNull())return;
-    int idx = OpenFile(qFileName);
-    QString fileDirectory = QFileInfo(qFileName).absolutePath();
-    snapshot.ReadDirectory(fileDirectory.toStdString());
-    slider1->blockSignals(true);
-    slider1->setEnabled(snapshot.last_file_index > 1);
-    slider1->setRange(1,snapshot.last_file_index);
-    slider1->setValue(idx);
-    slider1->blockSignals(false);
-*/
+
+    snapshot.ReadFullSnapshot(qFileName.toStdString());
+    representation.SynchronizeTopology();
+    updateGUI();
+    pbrowser->setActiveObject(params);
 }
 
 
@@ -481,14 +451,4 @@ void MainWindow::save_binary_data()
 */
 }
 
-void MainWindow::OpenFile(QString fileName)
-{
-    /*
-    int idx = snapshot.ReadSnapshot(fileName.toStdString());
-    representation.SynchronizeTopology();
-    updateGUI();
-    pbrowser->setActiveObject(params);
-    return idx;
-*/
-}
 

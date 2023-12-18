@@ -66,7 +66,6 @@ void icy::Model3D::Reset()
     prms.SimulationStep = 0;
     prms.SimulationTime = 0;
     compute_time_per_cycle = 0;
-    indenter_force_history.clear();
 
     const real &bx = prms.IceBlockDimX;
     const real &by = prms.IceBlockDimY;
@@ -87,44 +86,27 @@ void icy::Model3D::Reset()
     std::vector<std::array<real, 3>> prresult = thinks::PoissonDiskSampling(kRadius, kXMin, kXMax);
     prms.nPts = prresult.size();
     spdlog::info("finished thinks::PoissonDiskSampling; {} ", prms.nPts);
-    points.resize(prms.nPts);
+    gpu.cuda_allocate_arrays(prms.GridTotal, prms.nPts);
 
     prms.ParticleVolume = bvol/prms.nPts;
     prms.ParticleMass = prms.ParticleVolume*prms.Density;
     for(int k = 0; k<prms.nPts; k++)
     {
-        Point3D &p = points[k];
+        Point3D p;
         p.Reset();
         for(int i=0;i<3;i++) p.pos[i] = prresult[k][i];
         p.pos_initial = p.pos;
+        p.TransferToBuffer(gpu.tmp_transfer_buffer, prms.nPtsPitch, k);
     }
     prms.indenter_y = by + 2*h + prms.IndDiameter/2 - prms.IndDepth;
     prms.indenter_x = prms.indenter_x_initial = 4*h - prms.IndDiameter/2;
 
-    gpu.cuda_allocate_arrays(prms.GridTotal, prms.nPts);
     gpu.transfer_ponts_to_device();
     Prepare();
     spdlog::info("icy::Model::Reset() done");
 }
 
-void icy::Model3D::ResetToStep0()
-{
-    spdlog::info("ResetToStep0()");
 
-    prms.SimulationStep = 0;
-    prms.SimulationTime = 0;
-    compute_time_per_cycle = 0;
-    indenter_force_history.clear();
-
-    const real &h = prms.cellsize;
-
-    for(int k = 0; k<points.size(); k++) points[k].Reset();
-    prms.indenter_y = prms.IceBlockDimY + 2*h + prms.IndDiameter/2 - prms.IndDepth;
-    prms.indenter_x = prms.indenter_x_initial = 5*h - prms.IndDiameter/2 - h;
-    gpu.transfer_ponts_to_device();
-    Prepare();
-    spdlog::info("ResetToStep0() done");
-}
 
 
 void icy::Model3D::Prepare()

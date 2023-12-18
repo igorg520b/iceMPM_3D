@@ -29,6 +29,7 @@ void GPU_Implementation4::initialize()
     err = cudaStreamCreate(&streamCompute);
     if(err != cudaSuccess) throw std::runtime_error("GPU_Implementation3::initialize() cudaEventCreate");
     initialized = true;
+    spdlog::info("GPU_Implementation4::initialize() done");
 }
 
 void GPU_Implementation4::cuda_update_constants()
@@ -81,11 +82,7 @@ void GPU_Implementation4::cuda_allocate_arrays(size_t nGridNodes, size_t nPoints
 
 void GPU_Implementation4::transfer_ponts_to_device()
 {
-    const std::vector<icy::Point3D> &points = model->points;
-    const int pitch = model->prms.nPtsPitch;
-    if(points.size() > model->prms.nPts) throw std::out_of_range("transfer_points_to_device");
-    for(int idx=0;idx<model->prms.nPts;idx++) points[idx].TransferToBuffer(tmp_transfer_buffer, pitch, idx);
-
+    int pitch = model->prms.nPtsPitch;
     // transfer point data to device
     cudaError_t err = cudaMemcpy(model->prms.pts_array, tmp_transfer_buffer,
                      pitch*sizeof(real)*icy::SimParams3D::nPtsArrays, cudaMemcpyHostToDevice);

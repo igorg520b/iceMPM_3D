@@ -114,7 +114,7 @@ icy::VisualRepresentation::VisualRepresentation()
 
 void icy::VisualRepresentation::SynchronizeTopology()
 {
-    points->SetNumberOfPoints(model->points.size());
+    points->SetNumberOfPoints(model->prms.nPts);
 
     SynchronizeValues();
 
@@ -148,10 +148,10 @@ void icy::VisualRepresentation::SynchronizeValues()
 {
     model->hostside_data_update_mutex.lock();
 //#pragma omp parallel
-    for(int i=0;i<model->points.size();i++)
+    for(int i=0;i<model->prms.nPts;i++)
     {
-        const icy::Point3D &p = model->points[i];
-        points->SetPoint((vtkIdType)i, p.pos[0], p.pos[1], p.pos[2]);
+        Vector3r pos = icy::Point3D::getPos(model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, i);
+        points->SetPoint((vtkIdType)i, pos[0], pos[1], pos[2]);
     }
     points->Modified();
 
@@ -191,8 +191,10 @@ void icy::VisualRepresentation::SynchronizeValues()
         scalarBar->SetLookupTable(hueLut_four);
         hueLut->SetTableRange(centerVal-range, centerVal+range);
 
-        visualized_values->SetNumberOfValues(model->points.size());
-        for(int i=0;i<model->points.size();i++) visualized_values->SetValue((vtkIdType)i, model->points[i].q);
+        visualized_values->SetNumberOfValues(model->prms.nPts);
+        for(int i=0;i<model->prms.nPts;i++)
+            visualized_values->SetValue((vtkIdType)i,
+                                        icy::Point3D::getQ(model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, i));
         visualized_values->Modified();
     }
     else if(VisualizingVariable == VisOpt::Jp)
@@ -207,8 +209,10 @@ void icy::VisualRepresentation::SynchronizeValues()
         scalarBar->SetLookupTable(lutMPM);
         lutMPM->SetTableRange(centerVal-range, centerVal+range);
 
-        visualized_values->SetNumberOfValues(model->points.size());
-        for(int i=0;i<model->points.size();i++) visualized_values->SetValue((vtkIdType)i, model->points[i].Jp_inv-1);
+        visualized_values->SetNumberOfValues(model->prms.nPts);
+        for(int i=0;i<model->prms.nPts;i++)
+            visualized_values->SetValue((vtkIdType)i,
+                                        icy::Point3D::getJp_inv(model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, i)-1);
         visualized_values->Modified();
     }
 

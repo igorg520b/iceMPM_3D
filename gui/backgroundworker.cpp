@@ -36,7 +36,6 @@ void BackgroundWorker::Finalize()
 
 void BackgroundWorker::run()
 {
-    controller->Prepare();
     while(!kill)
     {
         if (timeToPause)
@@ -49,6 +48,7 @@ void BackgroundWorker::run()
             condition.wait(&mutex);
             mutex.unlock();
             running = true;
+            controller->Prepare();
         }
         if(kill) break;
 

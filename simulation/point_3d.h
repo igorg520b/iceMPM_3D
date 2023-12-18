@@ -23,6 +23,10 @@ struct icy::Point3D
     void Reset();
     void TransferToBuffer(real *buffer, const int pitch, const int point_index) const;  // distribute to SOA
     void PullFromBuffer(const real *buffer, const int pitch, const int point_index);
+
+    static Vector3r getPos(const real *buffer, const int pitch, const int point_index);
+    static char getQ(const real *buffer, const int pitch, const int point_index);
+    static double getJp_inv(const real *buffer, const int pitch, const int point_index);
 };
 
 

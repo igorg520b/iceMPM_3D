@@ -79,7 +79,6 @@ private Q_SLOTS:
     void open_snapshot_triggered();
     void save_snapshot_triggered();
     void load_parameter_triggered();
-    void simulation_reset_triggered();
 
     void sliderValueChanged(int val);
     void comboboxIndexChanged_visualizations(int index);
@@ -92,7 +91,6 @@ private:
     void updateGUI();   // when simulation is started/stopped or when a step is advanced
     void updateActorText();
     void save_binary_data();
-    void OpenFile(QString fileName);
 
     BackgroundWorker *worker;
     icy::VisualRepresentation representation;

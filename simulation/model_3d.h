@@ -30,7 +30,6 @@ class icy::Model3D
 public:
     Model3D();
     void Reset();
-    void ResetToStep0();
     void Prepare();        // invoked once, at simulation start
     bool Step();           // either invoked by Worker or via GUI
     void RequestAbort() {abortRequested = true;}   // asynchronous stop
@@ -40,9 +39,6 @@ public:
     icy::SimParams3D prms;
     GPU_Implementation4 gpu;
     float compute_time_per_cycle;
-
-    std::vector<icy::Point3D> points;
-    std::vector<Vector3r> indenter_force_history;
 
     std::mutex hostside_data_update_mutex; // locks "points" and "grid" vectors
     std::mutex processing_current_cycle_data; // locked until the current cycle results' are copied to host and processed
