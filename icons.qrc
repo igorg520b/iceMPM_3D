@@ -20,5 +20,6 @@
         <file>gui/icons/open-file-folder-svgrepo-com.svg</file>
         <file>gui/icons/save-svgrepo-com.svg</file>
         <file>gui/icons/screenshot-svgrepo-com.svg</file>
+        <file>gui/icons/sphere-svgrepo-com.svg</file>
     </qresource>
 </RCC>

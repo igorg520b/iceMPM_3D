@@ -29,6 +29,7 @@
      <string>File</string>
     </property>
     <addaction name="actionOpen"/>
+    <addaction name="actionSave_Snapshot_As"/>
     <addaction name="actionLoad_Parameters"/>
     <addaction name="separator"/>
     <addaction name="separator"/>
@@ -52,9 +53,15 @@
     <addaction name="actionStart_Pause"/>
     <addaction name="actionReset"/>
    </widget>
+   <widget class="QMenu" name="menuView">
+    <property name="title">
+     <string>View</string>
+    </property>
+   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuTools_2"/>
    <addaction name="menuSimulation"/>
+   <addaction name="menuView"/>
   </widget>
   <widget class="QToolBar" name="toolBar">
    <property name="sizePolicy">
@@ -82,6 +89,7 @@
     <bool>false</bool>
    </attribute>
    <addaction name="actionStart_Pause"/>
+   <addaction name="separator"/>
   </widget>
   <action name="action_camera_reset">
    <property name="text">
@@ -182,6 +190,18 @@
   <action name="actionExport_Indenter_Forces">
    <property name="text">
     <string>Export Indenter Forces</string>
+   </property>
+  </action>
+  <action name="actionSave_Snapshot_As">
+   <property name="icon">
+    <iconset resource="../../icons.qrc">
+     <normaloff>:/gui/icons/save-svgrepo-com.svg</normaloff>:/gui/icons/save-svgrepo-com.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Save Snapshot As...</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+S</string>
    </property>
   </action>
  </widget>

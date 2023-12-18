@@ -2,21 +2,21 @@
 #define SNAPSHOTMANAGER_H
 
 #include <string>
-/*
-namespace icy {class SnapshotManager; class Model;}
+
+namespace icy {class SnapshotManager; class Model3D;}
 
 
 class icy::SnapshotManager
 {
 public:
-    icy::Model *model;
+    icy::Model3D *model;
 
     int last_file_index = 0;
     std::string path;
-    void SaveSnapshot(std::string fileName);
-    int ReadSnapshot(std::string fileName); // return file number
-    void ReadDirectory(std::string directoryPath);
-    void DumpPointData(int pt_idx);
+    void SaveFullSnapshot(std::string fileName);
+    void ReadFullSnapshot(std::string fileName);
+
+//    void ScanDirectory(std::string directoryPath);
 };
-*/
+
 #endif // SNAPSHOTWRITER_H

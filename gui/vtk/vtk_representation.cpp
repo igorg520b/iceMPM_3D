@@ -37,47 +37,38 @@ icy::VisualRepresentation::VisualRepresentation()
     hueLut_four->SetTableValue(4, 0, 0.5, 0.5);
     hueLut_four->SetTableRange(0,4);
 
-
     indenterMapper->SetInputConnection(indenterSource->GetOutputPort());
     actor_indenter->SetMapper(indenterMapper);
 
     indenterMapper->SetInputConnection(indenterSource->GetOutputPort());
     actor_indenter->SetMapper(indenterMapper);
-//    actor_indenter->GetProperty()->LightingOff();
     actor_indenter->GetProperty()->EdgeVisibilityOn();
     actor_indenter->GetProperty()->VertexVisibilityOff();
     actor_indenter->GetProperty()->SetColor(0.3,0.1,0.1);
     actor_indenter->GetProperty()->SetEdgeColor(90.0/255.0, 90.0/255.0, 97.0/255.0);
-//    actor_indenter->GetProperty()->ShadingOff();
-//    actor_indenter->GetProperty()->SetInterpolationToFlat();
     actor_indenter->PickableOff();
     actor_indenter->GetProperty()->SetLineWidth(3);
-//    actor_indenter->RotateX(90);
     actor_indenter->RotateZ(90);
     actor_indenter->RotateX(90);
 
-
-    points_polydata->SetPoints(points);
-    points_polydata->GetPointData()->AddArray(visualized_values);
-
-    points_filter->SetInputData(points_polydata);
-    points_filter->Update();
-
-    points_mapper->SetInputData(points_filter->GetOutput());
-    points_mapper->UseLookupTableScalarRangeOn();
-    points_mapper->SetLookupTable(lutMPM);
-
     visualized_values->SetName("visualized_values");
 
+
+    points_polydata->SetPoints(points);
+
+    points_filter->SetInputData(points_polydata);
+
+    glyph3D->SetSourceConnection(sphereSource->GetOutputPort());
+    glyph3D->SetInputData(points_polydata);
+
+//    points_mapper->SetInputData(points_filter->GetOutput());
+    points_mapper->SetInputConnection(glyph3D->GetOutputPort());
+
     actor_points->SetMapper(points_mapper);
-    actor_points->GetProperty()->SetPointSize(2);
-    actor_points->GetProperty()->SetVertexColor(1.,1.,0);
-    actor_points->GetProperty()->SetColor(0.1,0.1,0.4);
-//    actor_points->GetProperty()->LightingOff();
-//    actor_points->GetProperty()->ShadingOff();
-//    actor_points->GetProperty()->SetInterpolationToFlat();
+    actor_points->GetProperty()->SetPointSize(20);
+//    actor_points->GetProperty()->SetVertexColor(1.,1.,0);
     actor_points->PickableOff();
-//    actor_points->GetProperty()->RenderPointsAsSpheresOn();
+    actor_points->GetProperty()->SetColor(0.8, 0.4, 0.4);
 
 
     grid_mapper->SetInputData(structuredGrid);
@@ -113,6 +104,10 @@ icy::VisualRepresentation::VisualRepresentation()
     txtprop->ShadowOff();
     txtprop->SetColor(0,0,0);
     actorText->SetDisplayPosition(500, 30);
+
+    // sphere as particle
+    sphereSource->SetPhiResolution(10);
+    sphereSource->SetThetaResolution(10);
 }
 
 
@@ -120,9 +115,6 @@ icy::VisualRepresentation::VisualRepresentation()
 void icy::VisualRepresentation::SynchronizeTopology()
 {
     points->SetNumberOfPoints(model->points.size());
-    visualized_values->SetNumberOfValues(model->points.size());
-    points_polydata->GetPointData()->SetActiveScalars("visualized_values");
-    points_mapper->SetColorModeToMapScalars();
 
     SynchronizeValues();
 
@@ -154,54 +146,74 @@ void icy::VisualRepresentation::SynchronizeTopology()
 
 void icy::VisualRepresentation::SynchronizeValues()
 {
-    actor_points->GetProperty()->SetPointSize(model->prms.ParticleViewSize);
-
     model->hostside_data_update_mutex.lock();
 //#pragma omp parallel
     for(int i=0;i<model->points.size();i++)
     {
         const icy::Point3D &p = model->points[i];
         points->SetPoint((vtkIdType)i, p.pos[0], p.pos[1], p.pos[2]);
-      }
+    }
+    points->Modified();
 
     double centerVal = 0;
     double range = std::pow(10,ranges[VisualizingVariable]);
-    points_mapper->SetLookupTable(lutMPM);
-    scalarBar->SetLookupTable(lutMPM);
 
 
-    if(VisualizingVariable == VisOpt::none)
+    if(VisualizingVariable == VisOpt::spheres)
+    {
+        points_mapper->SetInputConnection(glyph3D->GetOutputPort());
+        sphereSource->SetRadius(model->prms.SphereViewSize);
+        glyph3D->Update();
+    }
+    else
+    {
+        points_mapper->SetInputData(points_filter->GetOutput());
+        actor_points->GetProperty()->SetPointSize(model->prms.ParticleViewSize);
+        points_filter->Update();
+    }
+
+
+    if(VisualizingVariable == VisOpt::none || VisualizingVariable == VisOpt::spheres)
     {
         points_mapper->ScalarVisibilityOff();
-
-        //points_mapper->UseLookupTableScalarRangeOff();
+        points_polydata->GetPointData()->RemoveArray(0);
+        scalarBar->VisibilityOff();
     }
     else if(VisualizingVariable == VisOpt::NACC_case)
     {
+        scalarBar->VisibilityOn();
+        points_polydata->GetPointData()->AddArray(visualized_values);
+        points_polydata->GetPointData()->SetActiveScalars("visualized_values");
         points_mapper->ScalarVisibilityOn();
-
-        for(int i=0;i<model->points.size();i++) visualized_values->SetValue((vtkIdType)i, model->points[i].q);
+        points_mapper->SetColorModeToMapScalars();
+        points_mapper->UseLookupTableScalarRangeOn();
         points_mapper->SetLookupTable(hueLut_four);
         scalarBar->SetLookupTable(hueLut_four);
+        hueLut->SetTableRange(centerVal-range, centerVal+range);
+
+        visualized_values->SetNumberOfValues(model->points.size());
+        for(int i=0;i<model->points.size();i++) visualized_values->SetValue((vtkIdType)i, model->points[i].q);
+        visualized_values->Modified();
     }
     else if(VisualizingVariable == VisOpt::Jp)
     {
+        scalarBar->VisibilityOn();
+        points_polydata->GetPointData()->AddArray(visualized_values);
+        points_polydata->GetPointData()->SetActiveScalars("visualized_values");
         points_mapper->ScalarVisibilityOn();
+        points_mapper->SetColorModeToMapScalars();
+        points_mapper->UseLookupTableScalarRangeOn();
+        points_mapper->SetLookupTable(lutMPM);
+        scalarBar->SetLookupTable(lutMPM);
+        lutMPM->SetTableRange(centerVal-range, centerVal+range);
 
+        visualized_values->SetNumberOfValues(model->points.size());
         for(int i=0;i<model->points.size();i++) visualized_values->SetValue((vtkIdType)i, model->points[i].Jp_inv-1);
+        visualized_values->Modified();
     }
 
     model->hostside_data_update_mutex.unlock();
 
-
-//    float minmax[2];
-//    visualized_values->GetValueRange(minmax);
-    lutMPM->SetTableRange(centerVal-range, centerVal+range);
-    hueLut->SetTableRange(centerVal-range, centerVal+range);
-
-    points->Modified();
-    visualized_values->Modified();
-    points_filter->Update();
 
     double indenter_x = model->prms.indenter_x;
     double indenter_y = model->prms.indenter_y;

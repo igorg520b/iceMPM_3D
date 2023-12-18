@@ -126,6 +126,7 @@ void CUDART_CB GPU_Implementation4::callback_transfer_from_device_completion(cud
 
 void GPU_Implementation4::transfer_ponts_to_host_finalize()
 {
+    /*
     spdlog::info("GPU_Implementation4::transfer_ponts_to_host_finalize()");
     model->hostside_data_update_mutex.lock();
     for(int idx=0;idx<model->prms.nPts;idx++)
@@ -142,6 +143,7 @@ void GPU_Implementation4::transfer_ponts_to_host_finalize()
     indenter_force /= model->prms.UpdateEveryNthStep;
     model->indenter_force_history.push_back(indenter_force);
     spdlog::info("GPU_Implementation4::transfer_ponts_to_host_finalize() done");
+*/
 }
 
 void GPU_Implementation4::cuda_reset_grid()
@@ -513,7 +515,6 @@ __global__ void kernel_g2p()
     const int &pitch_pts = gprms.nPtsPitch;
     const int &pitch_grid = gprms.nGridPitch;
     const real &h_inv = gprms.cellsize_inv;
-    const real &h = gprms.cellsize;
     const real &dt = gprms.InitialTimeStep;
     const int &gridX = gprms.GridX;
     const int &gridY = gprms.GridY;

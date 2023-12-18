@@ -77,6 +77,7 @@ private Q_SLOTS:
     void simulation_start_pause(bool checked);
     void cameraReset_triggered();
     void open_snapshot_triggered();
+    void save_snapshot_triggered();
     void load_parameter_triggered();
     void simulation_reset_triggered();
 
@@ -91,9 +92,11 @@ private:
     void updateGUI();   // when simulation is started/stopped or when a step is advanced
     void updateActorText();
     void save_binary_data();
+    void OpenFile(QString fileName);
+
     BackgroundWorker *worker;
     icy::VisualRepresentation representation;
-//    icy::SnapshotManager snapshot;
+    icy::SnapshotManager snapshot;
     ParamsWrapper *params;
 
     QString settingsFileName;       // includes current dir
@@ -113,7 +116,6 @@ private:
     vtkNew<vtkRenderer> renderer;
 
     // other
-    int OpenFile(QString fileName);
     QString qLastParameterFile;
     std::string outputDirectory = "tmp_output";
     const std::string screenshot_directory = "screenshots";

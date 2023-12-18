@@ -58,6 +58,10 @@ class ParamsWrapper : public QObject
     double getParticleViewSize() {return prms->ParticleViewSize;}
     void setParticleViewSize(double val) {prms->ParticleViewSize=val;}
 
+    // SphereViewSize
+    Q_PROPERTY(double p_SphereViewSize READ getSphereViewSize WRITE setSphereViewSize NOTIFY propertyChanged)
+    double getSphereViewSize() {return prms->SphereViewSize;}
+    void setSphereViewSize(double val) {prms->SphereViewSize=val;}
 
     // indenter
     Q_PROPERTY(double IndDiameter READ getIndDiameter NOTIFY propertyChanged)
@@ -76,7 +80,7 @@ class ParamsWrapper : public QObject
     int getPointCountActual() {return prms->nPts;}
 
     Q_PROPERTY(QString b_Grid READ getGridDimensions NOTIFY propertyChanged)
-    QString getGridDimensions() {return QString("%1 x %2").arg(prms->GridX).arg(prms->GridY);}
+    QString getGridDimensions() {return QString("%1 x %2 x %3").arg(prms->GridX).arg(prms->GridY).arg(prms->GridZ);}
 
     Q_PROPERTY(double nacc_beta READ getNaccBeta NOTIFY propertyChanged)
     double getNaccBeta() {return prms->NACC_beta;}

@@ -34,7 +34,8 @@
 #include <vtkCylinderSource.h>
 #include <vtkAxesActor.h>
 
-
+#include <vtkSphereSource.h>
+#include <vtkGlyph3D.h>
 
 
 namespace icy { class VisualRepresentation; class Model3D;}
@@ -48,7 +49,7 @@ public:
 
     icy::Model3D *model;
 
-    enum VisOpt { none, NACC_case, Jp };
+    enum VisOpt { none, spheres, NACC_case, Jp };
     Q_ENUM(VisOpt)
     VisOpt VisualizingVariable = VisOpt::none;
     double ranges[20] = {};
@@ -77,9 +78,12 @@ private:
     vtkNew<vtkPoints> points;
     vtkNew<vtkPolyData> points_polydata;
     vtkNew<vtkPolyDataMapper> points_mapper;
-    vtkNew<vtkCellArray> points_cells;
     vtkNew<vtkVertexGlyphFilter> points_filter;
     vtkNew<vtkFloatArray> visualized_values;
+
+    // view points as spheres
+    vtkNew<vtkSphereSource> sphereSource;
+    vtkNew<vtkGlyph3D> glyph3D;
 
     // background grid
     vtkNew<vtkStructuredGrid> structuredGrid;

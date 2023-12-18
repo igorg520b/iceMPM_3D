@@ -14,7 +14,8 @@ void icy::SimParams3D::Reset()
     GridX = 256;
     GridY = 110;
     GridZ = 140;
-    ParticleViewSize = 2.5f;
+    ParticleViewSize = 2.5;
+    SphereViewSize = 0.01;
     GridXDimension = 3.33;
 
     SimulationEndTime = 12;
@@ -76,6 +77,7 @@ std::string icy::SimParams3D::ParseFile(std::string fileName)
     if(doc.HasMember("GridZ")) GridZ = doc["GridZ"].GetInt();
     if(doc.HasMember("GridXDimension")) GridXDimension = doc["GridXDimension"].GetDouble();
     if(doc.HasMember("ParticleViewSize")) ParticleViewSize = doc["ParticleViewSize"].GetDouble();
+    if(doc.HasMember("SphereViewSize")) SphereViewSize = doc["SphereViewSize"].GetDouble();
     if(doc.HasMember("SimulationEndTime")) SimulationEndTime = doc["SimulationEndTime"].GetDouble();
     if(doc.HasMember("PoissonsRatio")) PoissonsRatio = doc["PoissonsRatio"].GetDouble();
     if(doc.HasMember("Gravity")) Gravity = doc["Gravity"].GetDouble();

@@ -19,9 +19,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     params = new ParamsWrapper(&model.prms);
     worker = new BackgroundWorker(&model);
-//    snapshot.model = &model;
-    model.gpu.initialize();
+    snapshot.model = &model;
     representation.model = &model;
+    model.gpu.initialize();
 
     // VTK
     qt_vtk_widget = new QVTKOpenGLNativeWidget();
@@ -80,8 +80,6 @@ MainWindow::MainWindow(QWidget *parent)
     ui->statusbar->addWidget(statusLabel);
     ui->statusbar->addPermanentWidget(labelElapsedTime);
     ui->statusbar->addPermanentWidget(labelStepCount);
-
-// anything that includes the Model
 
 
     renderer->AddActor(representation.actor_points);
@@ -178,6 +176,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->action_quit, &QAction::triggered, this, &MainWindow::quit_triggered);
     connect(ui->action_camera_reset, &QAction::triggered, this, &MainWindow::cameraReset_triggered);
     connect(ui->actionOpen, &QAction::triggered, this, &MainWindow::open_snapshot_triggered);
+    connect(ui->actionSave_Snapshot_As, &QAction::triggered, this, &MainWindow::save_snapshot_triggered);
     connect(ui->actionCreate_Video, &QAction::triggered, this, &MainWindow::createVideo_triggered);
     connect(ui->actionScreenshot, &QAction::triggered, this, &MainWindow::screenshot_triggered);
     connect(ui->actionStart_Pause, &QAction::triggered, this, &MainWindow::simulation_start_pause);
@@ -240,8 +239,7 @@ void MainWindow::quit_triggered()
 void MainWindow::comboboxIndexChanged_visualizations(int index)
 {
     representation.ChangeVisualizationOption(index);
-//    scalarBar->SetVisibility(index != 0);
-//    renderWindow->Render();
+    renderWindow->Render();
     qdsbValRange->setValue(representation.ranges[index]);
 }
 
@@ -278,21 +276,7 @@ void MainWindow::sliderValueChanged(int val)
 }
 
 
-void MainWindow::open_snapshot_triggered()
-{
-    /*
-    QString qFileName = QFileDialog::getOpenFileName(this, "Open Simulation Snapshot", QDir::currentPath(), "HDF5 Files (*.h5)");
-    if(qFileName.isNull())return;
-    int idx = OpenFile(qFileName);
-    QString fileDirectory = QFileInfo(qFileName).absolutePath();
-    snapshot.ReadDirectory(fileDirectory.toStdString());
-    slider1->blockSignals(true);
-    slider1->setEnabled(snapshot.last_file_index > 1);
-    slider1->setRange(1,snapshot.last_file_index);
-    slider1->setValue(idx);
-    slider1->blockSignals(false);
-*/
-}
+
 
 void MainWindow::simulation_reset_triggered()
 {
@@ -302,16 +286,7 @@ void MainWindow::simulation_reset_triggered()
     renderWindow->Render();
 }
 
-int MainWindow::OpenFile(QString fileName)
-{
-    /*
-    int idx = snapshot.ReadSnapshot(fileName.toStdString());
-    representation.SynchronizeTopology();
-    updateGUI();
-    pbrowser->setActiveObject(params);
-    return idx;
-*/
-}
+
 
 void MainWindow::load_parameter_triggered()
 {
@@ -322,7 +297,6 @@ void MainWindow::load_parameter_triggered()
     this->setWindowTitle(qLastParameterFile);
     model.Reset();
     representation.SynchronizeTopology();
-//    if(ui->actionSave_Binary_Data->isChecked() && model.prms.SimulationStep == 0) save_binary_data();
     pbrowser->setActiveObject(params);
     updateGUI();
 }
@@ -402,18 +376,6 @@ void MainWindow::screenshot_triggered()
 
 }
 
-void MainWindow::save_binary_data()
-{
-    /*
-    QDir pngDir(QDir::currentPath()+ "/"+ outputDirectory.c_str());
-    if(!pngDir.exists()) pngDir.mkdir(QDir::currentPath()+ "/"+ outputDirectory.c_str());
-
-    int snapshot_number = model.prms.SimulationStep / model.prms.UpdateEveryNthStep;
-    QString outputPathSnapshot = QDir::currentPath()+ "/"+outputDirectory.c_str() + "/" +
-                         QString::number(snapshot_number).rightJustified(5, '0') + ".h5";
-    snapshot.SaveSnapshot(outputPathSnapshot.toStdString());
-*/
-}
 
 
 void MainWindow::simulation_data_ready()
@@ -478,6 +440,55 @@ void MainWindow::export_indenter_force_triggered()
     }
     ofs.close();
     qDebug() << "export_indenter_force_triggered()";
+*/
+}
+
+void MainWindow::save_snapshot_triggered()
+{
+    QString qFileName = QFileDialog::getSaveFileName(this, "Save Snapshot", QDir::currentPath(), "HDF5 files (*.h5)");
+    qDebug() << "manually saving snapshot";
+    snapshot.SaveFullSnapshot(qFileName.toStdString());
+    qDebug() << "snapshot saved";
+}
+
+void MainWindow::open_snapshot_triggered()
+{
+    /*
+    QString qFileName = QFileDialog::getOpenFileName(this, "Open Simulation Snapshot", QDir::currentPath(), "HDF5 Files (*.h5)");
+    if(qFileName.isNull())return;
+    int idx = OpenFile(qFileName);
+    QString fileDirectory = QFileInfo(qFileName).absolutePath();
+    snapshot.ReadDirectory(fileDirectory.toStdString());
+    slider1->blockSignals(true);
+    slider1->setEnabled(snapshot.last_file_index > 1);
+    slider1->setRange(1,snapshot.last_file_index);
+    slider1->setValue(idx);
+    slider1->blockSignals(false);
+*/
+}
+
+
+void MainWindow::save_binary_data()
+{
+    /*
+    QDir pngDir(QDir::currentPath()+ "/"+ outputDirectory.c_str());
+    if(!pngDir.exists()) pngDir.mkdir(QDir::currentPath()+ "/"+ outputDirectory.c_str());
+
+    int snapshot_number = model.prms.SimulationStep / model.prms.UpdateEveryNthStep;
+    QString outputPathSnapshot = QDir::currentPath()+ "/"+outputDirectory.c_str() + "/" +
+                         QString::number(snapshot_number).rightJustified(5, '0') + ".h5";
+    snapshot.SaveSnapshot(outputPathSnapshot.toStdString());
+*/
+}
+
+void MainWindow::OpenFile(QString fileName)
+{
+    /*
+    int idx = snapshot.ReadSnapshot(fileName.toStdString());
+    representation.SynchronizeTopology();
+    updateGUI();
+    pbrowser->setActiveObject(params);
+    return idx;
 */
 }
 

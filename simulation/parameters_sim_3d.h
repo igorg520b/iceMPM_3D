@@ -70,7 +70,7 @@ public:
     real IndDiameter, IndRSq, IndVelocity, IndDepth;
     real IceBlockDimX, IceBlockDimY, IceBlockDimZ;
 
-    real ParticleVolume, ParticleMass, ParticleViewSize;
+    real ParticleVolume, ParticleMass, ParticleViewSize, SphereViewSize;
 
     int SimulationStep;
     real SimulationTime;
@@ -83,6 +83,8 @@ public:
     void ComputeLame();
     void ComputeCamClayParams2();
     void ComputeHelperVariables();
+
+    int AnimationFrameNumber() { return SimulationStep / UpdateEveryNthStep;}
 };
 
 #endif
