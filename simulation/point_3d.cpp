@@ -60,6 +60,14 @@ Vector3r icy::Point3D::getPos(const real *buffer, const int pitch, const int poi
     return result;
 }
 
+Vector3r icy::Point3D::getVelocity(const real *buffer, const int pitch, const int point_index)
+{
+    Vector3r result;
+    for(int i=0; i<3; i++) result[i] = buffer[point_index + pitch*(icy::SimParams3D::velx+i)];
+    return result;
+}
+
+
 char icy::Point3D::getQ(const real *buffer, const int pitch, const int point_index)
 {
     char* ptr_intact = (char*)(&buffer[pitch*icy::SimParams3D::idx_intact]);

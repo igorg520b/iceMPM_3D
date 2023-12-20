@@ -114,8 +114,6 @@ private:
     vtkNew<vtkRenderer> renderer;
 
     // other
-    QString qLastParameterFile;
-    std::string outputDirectory = "tmp_output";
     const std::string screenshot_directory = "screenshots";
     bool replayMode = false;
     int replayFrame;

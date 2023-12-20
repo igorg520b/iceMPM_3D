@@ -7,6 +7,8 @@ icy::Model3D::Model3D()
 {
     prms.Reset();
     gpu.model = this;
+    outputDirectory = "default_output";
+    compute_time_per_cycle = 0;
 };
 
 
@@ -66,6 +68,7 @@ void icy::Model3D::Reset()
     prms.SimulationStep = 0;
     prms.SimulationTime = 0;
     compute_time_per_cycle = 0;
+    outputDirectory = "default_output";
 
     const real &bx = prms.IceBlockDimX;
     const real &by = prms.IceBlockDimY;

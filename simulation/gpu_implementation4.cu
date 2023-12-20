@@ -87,6 +87,8 @@ void GPU_Implementation4::transfer_ponts_to_device()
     cudaError_t err = cudaMemcpy(model->prms.pts_array, tmp_transfer_buffer,
                      pitch*sizeof(real)*icy::SimParams3D::nPtsArrays, cudaMemcpyHostToDevice);
     if(err != cudaSuccess) throw std::runtime_error("transfer_points_to_device");
+
+    memset(host_side_indenter_force_accumulator, 0, sizeof(real)*icy::SimParams3D::indenter_array_size);
     spdlog::info("GPU_Implementation4::transfer_ponts_to_device() done");
 }
 
@@ -145,7 +147,6 @@ void GPU_Implementation4::transfer_ponts_to_host_finalize()
 
 void GPU_Implementation4::cuda_reset_grid()
 {
-    spdlog::info("GPU_Implementation4::cuda_reset_grid()");
     cudaError_t err = cudaMemsetAsync(model->prms.grid_array, 0,
                                       model->prms.nGridPitch*icy::SimParams3D::nGridArrays*sizeof(real), streamCompute);
     if(err != cudaSuccess) throw std::runtime_error("cuda_reset_grid error");
@@ -160,7 +161,6 @@ void GPU_Implementation4::cuda_reset_indenter_force_accumulator()
 
 void GPU_Implementation4::cuda_p2g()
 {
-    spdlog::info("GPU_Implementation4::cuda_p2g()");
     const int nPoints = model->prms.nPts;
     int tpb = model->prms.tpb_P2G;
     int blocksPerGrid = (nPoints + tpb - 1) / tpb;
@@ -177,7 +177,6 @@ void GPU_Implementation4::cuda_p2g()
 
 void GPU_Implementation4::cuda_update_nodes(real indenter_x, real indenter_y)
 {
-    spdlog::info("GPU_Implementation4::cuda_update_nodes; ind [{}, {}]", indenter_x, indenter_y);
     const int nGridNodes = model->prms.GridTotal;
     int tpb = model->prms.tpb_Upd;
     int blocksPerGrid = (nGridNodes + tpb - 1) / tpb;
@@ -193,7 +192,6 @@ void GPU_Implementation4::cuda_update_nodes(real indenter_x, real indenter_y)
 
 void GPU_Implementation4::cuda_g2p()
 {
-    spdlog::info("GPU_Implementation4::cuda_g2p()");
     const int nPoints = model->prms.nPts;
     int tpb = model->prms.tpb_G2P;
     int blocksPerGrid = (nPoints + tpb - 1) / tpb;

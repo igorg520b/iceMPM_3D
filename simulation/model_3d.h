@@ -40,8 +40,8 @@ public:
     GPU_Implementation4 gpu;
     float compute_time_per_cycle;
 
-    std::mutex hostside_data_update_mutex; // locks "points" and "grid" vectors
     std::mutex processing_current_cycle_data; // locked until the current cycle results' are copied to host and processed
+    std::string outputDirectory;
 
 private:
     void ResetGrid();

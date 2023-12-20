@@ -60,7 +60,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->toolBar->addSeparator();
     slider1 = new QSlider(Qt::Horizontal);
     ui->toolBar->addWidget(slider1);
-    slider1->setTracking(true);
+    slider1->setTracking(false);
     slider1->setRange(0,0);
     connect(slider1, SIGNAL(valueChanged(int)), this, SLOT(sliderValueChanged(int)));
 
@@ -171,7 +171,6 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(ui->actionExport_Indenter_Forces, &QAction::triggered, this, &MainWindow::export_indenter_force_triggered);
 
-
     connect(qdsbValRange,QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MainWindow::limits_changed);
 
     connect(worker, SIGNAL(workerPaused()), SLOT(background_worker_paused()));
@@ -210,7 +209,6 @@ void MainWindow::quit_triggered()
 
     settings.setValue("vis_option", comboBox_visualizations->currentIndex());
 
-    if(!qLastParameterFile.isEmpty()) settings.setValue("lastParameterFile", qLastParameterFile);
     settings.setValue("take_screenshots", ui->actionTake_Screenshots->isChecked());
     settings.setValue("save_binary_data", ui->actionSave_Binary_Data->isChecked());
 
@@ -263,23 +261,12 @@ void MainWindow::sliderValueChanged(int val)
 
 
 
-void MainWindow::load_parameter_triggered()
-{
-    QString qFileName = QFileDialog::getOpenFileName(this, "Load Parameters", QDir::currentPath(), "JSON Files (*.json)");
-    if(qFileName.isNull())return;
-    this->outputDirectory = model.prms.ParseFile(qFileName.toStdString());
-    this->qLastParameterFile = qFileName;
-    this->setWindowTitle(qLastParameterFile);
-    model.Reset();
-    representation.SynchronizeTopology();
-    pbrowser->setActiveObject(params);
-    updateGUI();
-}
 
 
 
 void MainWindow::createVideo_triggered()
 {
+    if(!ui->actionTake_Screenshots->isChecked()) return;
     /*
     QString filePath = QDir::currentPath()+ "/video";
 
@@ -356,8 +343,8 @@ void MainWindow::screenshot_triggered()
 void MainWindow::simulation_data_ready()
 {
     updateGUI();
-    if(worker->running && ui->actionTake_Screenshots->isChecked()) screenshot_triggered();
-    if(worker->running && ui->actionSave_Binary_Data->isChecked()) save_binary_data();
+    screenshot_triggered();
+    save_binary_data();
     model.UnlockCycleMutex();
 }
 
@@ -428,6 +415,7 @@ void MainWindow::save_snapshot_triggered()
 
 void MainWindow::open_snapshot_triggered()
 {
+    qDebug() << "MainWindow::open_snapshot_triggered()";
     QString qFileName = QFileDialog::getOpenFileName(this, "Open Simulation Snapshot", QDir::currentPath(), "HDF5 Files (*.h5)");
     if(qFileName.isNull())return;
 
@@ -435,20 +423,31 @@ void MainWindow::open_snapshot_triggered()
     representation.SynchronizeTopology();
     updateGUI();
     pbrowser->setActiveObject(params);
+
+    snapshot.AllocateMemoryForFrames();
+    save_binary_data();
 }
 
+void MainWindow::load_parameter_triggered()
+{
+    QString qFileName = QFileDialog::getOpenFileName(this, "Load Parameters", QDir::currentPath(), "JSON Files (*.json)");
+    if(qFileName.isNull())return;
+    model.outputDirectory = model.prms.ParseFile(qFileName.toStdString());
+    this->setWindowTitle(qFileName);
+    model.Reset();
+    representation.SynchronizeTopology();
+    pbrowser->setActiveObject(params);
+    updateGUI();
+
+    snapshot.AllocateMemoryForFrames();
+    save_binary_data();
+}
 
 void MainWindow::save_binary_data()
 {
-    /*
-    QDir pngDir(QDir::currentPath()+ "/"+ outputDirectory.c_str());
-    if(!pngDir.exists()) pngDir.mkdir(QDir::currentPath()+ "/"+ outputDirectory.c_str());
-
-    int snapshot_number = model.prms.SimulationStep / model.prms.UpdateEveryNthStep;
-    QString outputPathSnapshot = QDir::currentPath()+ "/"+outputDirectory.c_str() + "/" +
-                         QString::number(snapshot_number).rightJustified(5, '0') + ".h5";
-    snapshot.SaveSnapshot(outputPathSnapshot.toStdString());
-*/
+    if(!ui->actionSave_Binary_Data->isChecked()) return;
+    qDebug() << "MainWindow::save_binary_data()";
+    snapshot.SaveFrame();
 }
 
 

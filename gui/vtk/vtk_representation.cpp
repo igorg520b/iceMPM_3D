@@ -146,7 +146,6 @@ void icy::VisualRepresentation::SynchronizeTopology()
 
 void icy::VisualRepresentation::SynchronizeValues()
 {
-    model->hostside_data_update_mutex.lock();
 //#pragma omp parallel
     for(int i=0;i<model->prms.nPts;i++)
     {
@@ -215,9 +214,6 @@ void icy::VisualRepresentation::SynchronizeValues()
                                         icy::Point3D::getJp_inv(model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, i)-1);
         visualized_values->Modified();
     }
-
-    model->hostside_data_update_mutex.unlock();
-
 
     double indenter_x = model->prms.indenter_x;
     double indenter_y = model->prms.indenter_y;
