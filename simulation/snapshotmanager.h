@@ -22,6 +22,9 @@ public:
     void AllocateMemoryForFrames();
     void SaveFrame();
 
+    void ReadFirstFrame(std::string directory);
+    bool ReadNextFrame();  // false if reached the end
+
 private:
     struct VisualPoint
     {

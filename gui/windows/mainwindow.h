@@ -79,6 +79,7 @@ private Q_SLOTS:
     void open_snapshot_triggered();
     void save_snapshot_triggered();
     void load_parameter_triggered();
+    void open_replay_triggered();
 
     void sliderValueChanged(int val);
     void comboboxIndexChanged_visualizations(int index);

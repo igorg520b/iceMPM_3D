@@ -56,13 +56,10 @@ void icy::SnapshotManager::ReadFullSnapshot(std::string fileName)
     hsize_t dims_params = 0;
     dataset_params.getSpace().getSimpleExtentDims(&dims_params, NULL);
     if(dims_params != sizeof(icy::SimParams3D)) throw std::runtime_error("ReadSnapshot: SimParams3D size mismatch");
-
     icy::SimParams3D tmp_params = model->prms;
     dataset_params.read(&model->prms, H5::PredType::NATIVE_B8);
-
     if(tmp_params.nGridPitch != model->prms.nGridPitch || tmp_params.nPtsPitch != model->prms.nPtsPitch)
         model->gpu.cuda_allocate_arrays(model->prms.nGridPitch, model->prms.nPtsPitch);
-    real ParticleViewSize = model->prms.ParticleViewSize;
     model->prms.ParticleViewSize = tmp_params.ParticleViewSize;
     model->prms.SphereViewSize = tmp_params.SphereViewSize;
 
@@ -175,8 +172,6 @@ void icy::SnapshotManager::SaveFrame()
     H5::DataSet dataset_params = file.createDataSet("Params", H5::PredType::NATIVE_B8, dataspace_params);
     dataset_params.write(&model->prms, H5::PredType::NATIVE_B8);
 
-
-
     hsize_t chunk_dims_indenter = 10000;
     H5::DSetCreatPropList proplist2;
     proplist2.setChunk(1, &chunk_dims_indenter);
@@ -199,6 +194,132 @@ void icy::SnapshotManager::SaveFrame()
 
     file.close();
     spdlog::info("saved_frame.size {}; {}", saved_frame.size(), fileName);
+}
+
+
+void icy::SnapshotManager::ReadFirstFrame(std::string directory)
+{
+    path = directory;
+    char fileName[20];
+    int current_frame_number = 0;
+    snprintf(fileName, sizeof(fileName), "v%05d.h5", current_frame_number);
+    std::string filePath = path + "/" + fileName;
+    spdlog::info("reading visual frame {} to file {}", current_frame_number, filePath);
+
+    if(!std::filesystem::exists(filePath))
+    {
+        spdlog::critical("file {} does not exist",filePath);
+        return;
+    }
+
+    H5::H5File file(filePath, H5F_ACC_RDONLY);
+
+    spdlog::info("reading Params");
+    // read params
+    H5::DataSet dataset_params = file.openDataSet("Params");
+    hsize_t dims_params = 0;
+    dataset_params.getSpace().getSimpleExtentDims(&dims_params, NULL);
+    if(dims_params != sizeof(icy::SimParams3D)) throw std::runtime_error("SimParams3D size mismatch");
+    dataset_params.read(&model->prms, H5::PredType::NATIVE_B8);
+    model->gpu.cuda_allocate_arrays(model->prms.nGridPitch, model->prms.nPtsPitch);
+
+    // allocate arrays for snapshot
+    AllocateMemoryForFrames();
+
+    // read indenter data
+    spdlog::info("reading indenter data");
+    H5::DataSet dataset_indenter = file.openDataSet("Indenter_Force");
+    dataset_indenter.read(indenter_force_buffer.data(), H5::PredType::NATIVE_FLOAT);
+    for(int i=0;i<icy::SimParams3D::indenter_array_size;i++)
+    model->gpu.host_side_indenter_force_accumulator[i] = indenter_force_buffer[i];
+
+    // read points
+    spdlog::info("reading Points");
+    H5::DataSet dataset_points = file.openDataSet("Points");
+    hsize_t dims_points = 0;
+    dataset_points.getSpace().getSimpleExtentDims(&dims_points, NULL);
+    int nPoints = dims_points/sizeof(VisualPoint);
+    current_frame.resize(nPoints);
+    dataset_points.read(current_frame.data(), H5::PredType::NATIVE_B8);
+    file.close();
+
+    spdlog::info("transferring points to host buffer");
+    for(int i=0;i<current_frame.size();i++)
+    {
+        VisualPoint &vp = current_frame[i];
+        int pt_idx = vp.id;
+        if(pt_idx >= model->prms.nPtsPitch)
+        {
+            spdlog::critical("pt_idx {} out of bounds {}", pt_idx, model->prms.nPtsPitch);
+            throw std::out_of_range("read error");
+        }
+        icy::Point3D::setPos_Q_Jpinv(vp.pos(), vp.Jp_inv,
+                                     model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, pt_idx);
+    }
+    spdlog::info("icy::SnapshotManager::ReadFirstFrame done");
+}
+
+
+bool icy::SnapshotManager::ReadNextFrame()
+{
+    // this is different from ReadFirstFrame - the updates are iterative
+    int next_frame = model->prms.AnimationFrameNumber()+1;
+
+    char fileName[20];
+    snprintf(fileName, sizeof(fileName), "v%05d.h5", next_frame);
+    std::string filePath = path + "/" + fileName;
+    spdlog::info("reading file {}", filePath);
+
+    if(!std::filesystem::exists(filePath)) return false;
+
+    H5::H5File file(filePath, H5F_ACC_RDONLY);
+
+    // read params
+    H5::DataSet dataset_params = file.openDataSet("Params");
+    hsize_t dims_params = 0;
+    dataset_params.getSpace().getSimpleExtentDims(&dims_params, NULL);
+    if(dims_params != sizeof(icy::SimParams3D)) throw std::runtime_error("SimParams3D size mismatch");
+    dataset_params.read(&model->prms, H5::PredType::NATIVE_B8);
+
+    // read indenter data
+    H5::DataSet dataset_indenter = file.openDataSet("Indenter_Force");
+    dataset_indenter.read(indenter_force_buffer.data(), H5::PredType::NATIVE_FLOAT);
+    for(int i=0;i<icy::SimParams3D::indenter_array_size;i++)
+        model->gpu.host_side_indenter_force_accumulator[i] = indenter_force_buffer[i];
+
+    H5::DataSet dataset_points = file.openDataSet("Points");
+    hsize_t dims_points = 0;
+    dataset_points.getSpace().getSimpleExtentDims(&dims_points, NULL);
+    int nPoints = dims_points/sizeof(VisualPoint);
+    saved_frame.resize(nPoints);
+    dataset_points.read(saved_frame.data(), H5::PredType::NATIVE_B8);
+    file.close();
+
+    // advance "current_frame" one step forward
+
+    for(int i=0; i<model->prms.nPts;i++)
+    {
+        VisualPoint &vp = current_frame[i];
+        Eigen::Vector3f updated_pos = vp.pos() + vp.vel()*model->prms.InitialTimeStep;
+        for(int j=0;j<3;j++) vp.p[j] = updated_pos[j];
+    }
+
+    // update select points
+    for(int i=0; i<saved_frame.size(); i++)
+    {
+        VisualPoint &vp = saved_frame[i];
+        current_frame[vp.id] = vp;
+    }
+
+    // transfer
+    for(int i=0;i<current_frame.size();i++)
+    {
+        VisualPoint &vp = current_frame[i];
+        icy::Point3D::setPos_Q_Jpinv(vp.pos(), vp.Jp_inv,
+                                     model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, i);
+    }
+
+    return true;
 }
 
 

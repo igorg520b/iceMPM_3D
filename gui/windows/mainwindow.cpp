@@ -168,7 +168,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionScreenshot, &QAction::triggered, this, &MainWindow::screenshot_triggered);
     connect(ui->actionStart_Pause, &QAction::triggered, this, &MainWindow::simulation_start_pause);
     connect(ui->actionLoad_Parameters, &QAction::triggered, this, &MainWindow::load_parameter_triggered);
-
+    connect(ui->actionReplay, &QAction::triggered, this, &MainWindow::open_replay_triggered);
     connect(ui->actionExport_Indenter_Forces, &QAction::triggered, this, &MainWindow::export_indenter_force_triggered);
 
     connect(qdsbValRange,QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MainWindow::limits_changed);
@@ -266,44 +266,46 @@ void MainWindow::sliderValueChanged(int val)
 
 void MainWindow::createVideo_triggered()
 {
+    qDebug() << "MainWindow::createVideo_triggered()";
     if(!ui->actionTake_Screenshots->isChecked()) return;
-    /*
-    QString filePath = QDir::currentPath()+ "/video";
 
+    QString filePath = QDir::currentPath()+ "/video";
     QDir videoDir(filePath);
     if(!videoDir.exists()) videoDir.mkdir(filePath);
 
     renderWindow->DoubleBufferOff();
     windowToImageFilter->SetInputBufferTypeToRGBA(); //also record the alpha (transparency) channel
 
-    int nFrames = snapshot.last_file_index;
-    for(int i=1; i<=nFrames; i++)
+    // make screenshots while the files are available
+    int count = -1;
+    do
     {
-        QString stringIdx = QString{"%1"}.arg(i,5, 10, QLatin1Char('0'));
-        labelStepCount->setText(stringIdx);
-        QString stringFileName = stringIdx + ".h5";
-        stringFileName = QString::fromStdString(snapshot.path) + "/"+stringFileName;
-        OpenFile(stringFileName);
+        count++;
+        representation.SynchronizeTopology();
+        renderWindow->Render();
         renderWindow->WaitForCompletion();
-
-        QString outputPath = filePath + "/" + stringIdx + ".png";
-
         windowToImageFilter->Update();
         windowToImageFilter->Modified();
 
         writerPNG->Modified();
+        int frame_index = model.prms.AnimationFrameNumber();
+        QString stringIdx = QString{"%1"}.arg(frame_index,5, 10, QLatin1Char('0'));
+        QString outputPath = filePath + "/" + stringIdx + ".png";
         writerPNG->SetFileName(outputPath.toUtf8().constData());
         writerPNG->Write();
-    }
+
+    } while(snapshot.ReadNextFrame());
+
     renderWindow->DoubleBufferOn();
 
-    std::string ffmpegCommand = "ffmpeg -y -r 60 -f image2 -start_number 1 -i \"" + filePath.toStdString() +
-                                "/%05d.png\" -vframes " + std::to_string(nFrames) +
+
+    std::string ffmpegCommand = "ffmpeg -y -r 60 -f image2 -start_number 0 -i \"" + filePath.toStdString() +
+                                "/%05d.png\" -vframes " + std::to_string(count) +
                                 " -vcodec libx264 -vf \"pad=ceil(iw/2)*2:ceil(ih/2)*2\" -crf 25  -pix_fmt yuv420p "+
         filePath.toStdString() + "/result.mp4\n";
     qDebug() << ffmpegCommand.c_str();
     int result = std::system(ffmpegCommand.c_str());
-*/
+
 }
 
 
@@ -418,12 +420,10 @@ void MainWindow::open_snapshot_triggered()
     qDebug() << "MainWindow::open_snapshot_triggered()";
     QString qFileName = QFileDialog::getOpenFileName(this, "Open Simulation Snapshot", QDir::currentPath(), "HDF5 Files (*.h5)");
     if(qFileName.isNull())return;
-
     snapshot.ReadFullSnapshot(qFileName.toStdString());
     representation.SynchronizeTopology();
     updateGUI();
     pbrowser->setActiveObject(params);
-
     snapshot.AllocateMemoryForFrames();
     save_binary_data();
 }
@@ -445,9 +445,35 @@ void MainWindow::load_parameter_triggered()
 
 void MainWindow::save_binary_data()
 {
+    constexpr int save_full_snapshot_every = 100;
     if(!ui->actionSave_Binary_Data->isChecked()) return;
     qDebug() << "MainWindow::save_binary_data()";
     snapshot.SaveFrame();
+
+    // once in 100 frames save full data (expect 20 GB per file)
+    int frame = model.prms.AnimationFrameNumber();
+    if(frame%save_full_snapshot_every == 0)
+    {
+        QString filePath = QDir::currentPath()+ "/full_snapshots";
+        QDir fileDir(filePath);
+        if(!fileDir.exists()) fileDir.mkdir(filePath);
+
+        QString stringIdx = QString{"%1"}.arg(frame,5, 10, QLatin1Char('0'));
+        QString outputPath = filePath + "/" + "s" + stringIdx + ".h5";
+        snapshot.SaveFullSnapshot(outputPath.toStdString());
+    }
+
 }
 
 
+void MainWindow::open_replay_triggered()
+{
+    qDebug() << "MainWindow::open_replay_triggered()";
+    QString dir = QFileDialog::getExistingDirectory(this, tr("Open Directory"), QDir::currentPath(), QFileDialog::ShowDirsOnly);
+    if(dir.isNull()) return;
+    snapshot.ReadFirstFrame(dir.toStdString());
+    this->setWindowTitle(dir);
+    representation.SynchronizeTopology();
+    pbrowser->setActiveObject(params);
+    updateGUI();
+}

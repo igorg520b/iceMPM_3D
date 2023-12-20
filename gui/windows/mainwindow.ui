@@ -32,6 +32,8 @@
     <addaction name="actionSave_Snapshot_As"/>
     <addaction name="actionLoad_Parameters"/>
     <addaction name="separator"/>
+    <addaction name="actionReplay"/>
+    <addaction name="separator"/>
     <addaction name="separator"/>
     <addaction name="action_quit"/>
    </widget>
@@ -42,8 +44,11 @@
     <addaction name="action_camera_reset"/>
     <addaction name="actionCreate_Video"/>
     <addaction name="actionScreenshot"/>
+    <addaction name="separator"/>
     <addaction name="actionTake_Screenshots"/>
     <addaction name="actionSave_Binary_Data"/>
+    <addaction name="actionExport_VTU"/>
+    <addaction name="actionExport_BGEO"/>
     <addaction name="actionExport_Indenter_Forces"/>
    </widget>
    <widget class="QMenu" name="menuSimulation">
@@ -202,6 +207,30 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+S</string>
+   </property>
+  </action>
+  <action name="actionReplay">
+   <property name="text">
+    <string>Replay...</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+W</string>
+   </property>
+  </action>
+  <action name="actionExport_VTU">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Export VTU</string>
+   </property>
+  </action>
+  <action name="actionExport_BGEO">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Export BGEO</string>
    </property>
   </action>
  </widget>

@@ -35,6 +35,15 @@ void icy::Point3D::TransferToBuffer(real *buffer, const int pitch, const int poi
     }
 }
 
+void icy::Point3D::setPos_Q_Jpinv(Eigen::Vector3f _pos, float _Jp_inv,
+                                         real *buff, const int pitch, const int pt_idx)
+{
+    buff[pt_idx + pitch*icy::SimParams3D::idx_Jp_inv] = (double)_Jp_inv;
+    for(int i=0;i<3;i++)
+        buff[pt_idx + pitch*(icy::SimParams3D::posx+i)] = (double)_pos[i];
+}
+
+
 void icy::Point3D::PullFromBuffer(const real *buffer, const int pitch, const int point_index)
 {
     char* ptr_intact = (char*)(&buffer[pitch*icy::SimParams3D::idx_intact]);
