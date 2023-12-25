@@ -73,7 +73,7 @@ void icy::Model3D::Reset()
     const real &bx = prms.IceBlockDimX;
     const real &by = prms.IceBlockDimY;
     const real &bz = prms.IceBlockDimZ;
-    const real &bvol = bx*by*bz;
+    const real bvol = bx*by*bz;
     const real &h = prms.cellsize;
     constexpr real magic_constant = 0.5844;
 

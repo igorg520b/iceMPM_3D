@@ -86,7 +86,6 @@ private Q_SLOTS:
     void createVideo_triggered();
     void screenshot_triggered();
     void limits_changed(double val);
-    void export_indenter_force_triggered();
 
 private:
     void updateGUI();   // when simulation is started/stopped or when a step is advanced

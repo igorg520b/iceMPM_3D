@@ -316,8 +316,10 @@ void MainWindow::createVideo_triggered()
 
 void MainWindow::screenshot_triggered()
 {
+    if(!ui->actionTake_Screenshots->isChecked()) return;
     if(model.prms.SimulationStep % model.prms.UpdateEveryNthStep) return;
-    int screenshot_number = model.prms.SimulationStep / model.prms.UpdateEveryNthStep;
+
+    int screenshot_number = model.prms.AnimationFrameNumber();
     QString outputPath = QDir::currentPath()+ "/" + screenshot_directory.c_str() + "/" +
             QString::number(screenshot_number).rightJustified(5, '0') + ".png";
 
@@ -329,7 +331,6 @@ void MainWindow::screenshot_triggered()
     windowToImageFilter->SetInputBufferTypeToRGBA(); //also record the alpha (transparency) channel
     renderWindow->WaitForCompletion();
 
-
     windowToImageFilter->Update();
     windowToImageFilter->Modified();
 
@@ -337,7 +338,6 @@ void MainWindow::screenshot_triggered()
     writerPNG->SetFileName(outputPath.toUtf8().constData());
     writerPNG->Write();
     renderWindow->DoubleBufferOn();
-
 }
 
 
@@ -392,20 +392,6 @@ void MainWindow::background_worker_paused()
 }
 
 
-void MainWindow::export_indenter_force_triggered()
-{
-    /*
-    std::ofstream ofs("indenter_force.csv", std::ofstream::out | std::ofstream::trunc);
-    ofs << "fx,fy,F_total\n";
-    for(int i=0;i<model.indenter_force_history.size();i++)
-    {
-        Vector2r v = model.indenter_force_history[i];
-        ofs << v[0] << ',' << v[1] << ',' << v.norm() << '\n';
-    }
-    ofs.close();
-    qDebug() << "export_indenter_force_triggered()";
-*/
-}
 
 void MainWindow::save_snapshot_triggered()
 {
@@ -425,7 +411,7 @@ void MainWindow::open_snapshot_triggered()
     updateGUI();
     pbrowser->setActiveObject(params);
     snapshot.AllocateMemoryForFrames();
-    save_binary_data();
+//    save_binary_data();
 }
 
 void MainWindow::load_parameter_triggered()
@@ -440,7 +426,7 @@ void MainWindow::load_parameter_triggered()
     updateGUI();
 
     snapshot.AllocateMemoryForFrames();
-    save_binary_data();
+    if(ui->actionSave_Binary_Data->isChecked()) snapshot.SaveFrame();
 }
 
 void MainWindow::save_binary_data()
@@ -452,7 +438,7 @@ void MainWindow::save_binary_data()
 
     // once in 100 frames save full data (expect 20 GB per file)
     int frame = model.prms.AnimationFrameNumber();
-    if(frame%save_full_snapshot_every == 0)
+    if(frame%save_full_snapshot_every == 0 && frame != 0)
     {
         QString filePath = QDir::currentPath()+ "/full_snapshots";
         QDir fileDir(filePath);

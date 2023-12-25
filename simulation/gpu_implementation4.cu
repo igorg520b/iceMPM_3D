@@ -125,24 +125,9 @@ void CUDART_CB GPU_Implementation4::callback_transfer_from_device_completion(cud
 
 void GPU_Implementation4::transfer_ponts_to_host_finalize()
 {
-    /*
-    spdlog::info("GPU_Implementation4::transfer_ponts_to_host_finalize()");
-    model->hostside_data_update_mutex.lock();
-    for(int idx=0;idx<model->prms.nPts;idx++)
-        model->points[idx].PullFromBuffer(tmp_transfer_buffer, model->prms.nPtsPitch, idx);
-    model->hostside_data_update_mutex.unlock();
-
-    spdlog::info("transfer_ponts_to_host_finalize() data pulled from buffer");
-    // add up indenter forces
-    Vector3r indenter_force;
-    indenter_force.setZero();
-    for(int i=0; i<icy::SimParams3D::indenter_array_size/3; i++)
-        for(int j=0;j<3;j++)
-            indenter_force[j] += host_side_indenter_force_accumulator[j+i*3];
-    indenter_force /= model->prms.UpdateEveryNthStep;
-    model->indenter_force_history.push_back(indenter_force);
-    spdlog::info("GPU_Implementation4::transfer_ponts_to_host_finalize() done");
-*/
+    // operations that take place right after the data is transferred to host
+    for(int i=0; i<icy::SimParams3D::indenter_array_size; i++)
+        host_side_indenter_force_accumulator[i] /= model->prms.UpdateEveryNthStep;
 }
 
 void GPU_Implementation4::cuda_reset_grid()

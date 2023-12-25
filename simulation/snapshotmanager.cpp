@@ -60,8 +60,6 @@ void icy::SnapshotManager::ReadFullSnapshot(std::string fileName)
     dataset_params.read(&model->prms, H5::PredType::NATIVE_B8);
     if(tmp_params.nGridPitch != model->prms.nGridPitch || tmp_params.nPtsPitch != model->prms.nPtsPitch)
         model->gpu.cuda_allocate_arrays(model->prms.nGridPitch, model->prms.nPtsPitch);
-    model->prms.ParticleViewSize = tmp_params.ParticleViewSize;
-    model->prms.SphereViewSize = tmp_params.SphereViewSize;
 
     // read point data
     H5::DataSet dataset_points = file.openDataSet("Points");
