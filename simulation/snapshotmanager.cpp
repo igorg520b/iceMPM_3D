@@ -131,6 +131,7 @@ void icy::SnapshotManager::SaveFrame()
     else
     {
         const float visual_threshold = 2e-3;
+        const float Jp_inv_threshold = 1e-4;
         float dt = (float)model->prms.InitialTimeStep;
         saved_frame.clear();
         for(int i=0;i<model->prms.nPts;i++)
@@ -141,7 +142,8 @@ void icy::SnapshotManager::SaveFrame()
             int elapsed_frames = current_frame_number - previous_update;
             Eigen::Vector3f predicted_position = p_p.pos() + p_p.vel()*(dt*elapsed_frames);
             Eigen::Vector3f prediction_error = p_c.pos() - predicted_position;
-            if(prediction_error.norm() > visual_threshold)
+            float Jp_diff = abs(p_c.Jp_inv - p_p.Jp_inv);
+            if(prediction_error.norm() > visual_threshold || Jp_diff > Jp_inv_threshold)
             {
                 last_refresh_frame[i] = current_frame_number;
                 p_p = p_c;

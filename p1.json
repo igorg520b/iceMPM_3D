@@ -1,15 +1,15 @@
 {
 "OutputDirectory":"cm_output1",
+"InputRawPoints":"/media/s2/Archive1/MPM_2023_results/raw_points/500k.h5",
+
 "ParticleViewSize":2.0,
 "InitialTimeStep":1.0e-5,
-"PointsWanted":500000,
 "GridX":64,
 "GridY":27,
-"GridZ":38,
+"GridZ":50,
 "GridXDimension":3.3,
 
 "YoungsModulus":5.0e8,
-"NACC_max_strain":0.01,
 "IceCompressiveStrength":100e6,
 "IceTensileStrength":10e6,
 "IceShearStrength":4.5e6,
@@ -19,12 +19,9 @@
 "PoissonsRatio":0.3,
 "Gravity":9.81,
 "Density":980,
-"IceFrictionCoefficient":0.03,
 "IndDiameter":0.324,
 "IndVelocity":0.2,
-"IndDepth":0.101,
-"BlockHeight":1.0,
-"BlockLength":2.5
+"IndDepth":0.101
 }
 
 
