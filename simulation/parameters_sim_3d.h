@@ -5,6 +5,7 @@
 #include <string>
 #include <filesystem>
 #include <fstream>
+#include <utility>
 
 #include <Eigen/Core>
 #include <Eigen/LU>
@@ -78,7 +79,7 @@ public:
     real indenter_x, indenter_x_initial, indenter_y;
 
     void Reset();
-    std::string ParseFile(std::string fileName);
+    std::pair<std::string,std::string> ParseFile(std::string fileName);
 
     void ComputeLame();
     void ComputeCamClayParams2();

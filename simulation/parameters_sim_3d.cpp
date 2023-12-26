@@ -55,9 +55,10 @@ void icy::SimParams3D::Reset()
 }
 
 
-std::string icy::SimParams3D::ParseFile(std::string fileName)
+std::pair<std::string,std::string> icy::SimParams3D::ParseFile(std::string fileName)
 {
     if(!std::filesystem::exists(fileName)) throw std::runtime_error("configuration file is not found");
+
     std::ifstream fileStream(fileName);
     std::string strConfigFile;
     strConfigFile.resize(std::filesystem::file_size(fileName));
@@ -69,7 +70,11 @@ std::string icy::SimParams3D::ParseFile(std::string fileName)
     if(!doc.IsObject()) throw std::runtime_error("configuration file is not JSON");
 
     std::string outputDirectory = "output";
+    std::string inputRawPoints;
+
     if(doc.HasMember("OutputDirectory")) outputDirectory = doc["OutputDirectory"].GetString();
+    if(doc.HasMember("InputRawPoints")) inputRawPoints = doc["InputRawPoints"].GetString();
+
     if(doc.HasMember("InitialTimeStep")) InitialTimeStep = doc["InitialTimeStep"].GetDouble();
     if(doc.HasMember("YoungsModulus")) YoungsModulus = doc["YoungsModulus"].GetDouble();
     if(doc.HasMember("PointsWanted")) PointsWanted = doc["PointsWanted"].GetDouble();
@@ -77,6 +82,7 @@ std::string icy::SimParams3D::ParseFile(std::string fileName)
     if(doc.HasMember("GridY")) GridY = doc["GridY"].GetInt();
     if(doc.HasMember("GridZ")) GridZ = doc["GridZ"].GetInt();
     if(doc.HasMember("GridXDimension")) GridXDimension = doc["GridXDimension"].GetDouble();
+
     if(doc.HasMember("ParticleViewSize")) ParticleViewSize = doc["ParticleViewSize"].GetDouble();
     if(doc.HasMember("SphereViewSize")) SphereViewSize = doc["SphereViewSize"].GetDouble();
     if(doc.HasMember("SimulationEndTime")) SimulationEndTime = doc["SimulationEndTime"].GetDouble();
@@ -86,6 +92,7 @@ std::string icy::SimParams3D::ParseFile(std::string fileName)
     if(doc.HasMember("IndDiameter")) IndDiameter = doc["IndDiameter"].GetDouble();
     if(doc.HasMember("IndVelocity")) IndVelocity = doc["IndVelocity"].GetDouble();
     if(doc.HasMember("IndDepth")) IndDepth = doc["IndDepth"].GetDouble();
+
     if(doc.HasMember("IceBlockDimX")) IceBlockDimX = doc["IceBlockDimX"].GetDouble();
     if(doc.HasMember("IceBlockDimY")) IceBlockDimY = doc["IceBlockDimY"].GetDouble();
     if(doc.HasMember("IceBlockDimZ")) IceBlockDimZ = doc["IceBlockDimZ"].GetDouble();
@@ -96,7 +103,6 @@ std::string icy::SimParams3D::ParseFile(std::string fileName)
 
     if(doc.HasMember("DP_phi")) DP_tan_phi = std::tan(doc["DP_phi"].GetDouble()*pi/180);
 
-
     ComputeCamClayParams2();
     ComputeLame();
     ComputeHelperVariables();
@@ -104,7 +110,9 @@ std::string icy::SimParams3D::ParseFile(std::string fileName)
     std::cout << "loaded parameters file " << fileName << '\n';
     std::cout << "GridXDimension " << GridXDimension << '\n';
     std::cout << "cellsize " << cellsize << '\n';
-    return outputDirectory;
+    if(inputRawPoints != "") std::cout << "raw points file " << inputRawPoints << '\n';
+
+    return {outputDirectory, inputRawPoints};
 }
 
 void icy::SimParams3D::ComputeLame()

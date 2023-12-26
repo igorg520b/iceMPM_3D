@@ -16,6 +16,10 @@ public:
     int last_file_index = 0;
     bool previous_frame_exists = false;     // false when starting/restarting the simulation
     std::string path;
+
+    void ReadRawPoints(std::string fileName);
+    void GeneratePoints();
+
     void SaveFullSnapshot(std::string fileName);
     void ReadFullSnapshot(std::string fileName);
 
@@ -24,6 +28,8 @@ public:
 
     void ReadFirstFrame(std::string directory);
     bool ReadNextFrame();  // false if reached the end
+
+
 
 private:
     struct VisualPoint

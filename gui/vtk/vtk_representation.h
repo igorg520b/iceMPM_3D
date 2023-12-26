@@ -29,14 +29,11 @@
 #include <vtkTextProperty.h>
 #include <vtkTextActor.h>
 
-
 #include <vtkRegularPolygonSource.h>
 #include <vtkCylinderSource.h>
 #include <vtkAxesActor.h>
-
-#include <vtkSphereSource.h>
-#include <vtkGlyph3D.h>
-
+#include <vtkTransform.h>
+#include <vtkTransformFilter.h>
 
 namespace icy { class VisualRepresentation; class Model3D;}
 
@@ -49,7 +46,7 @@ public:
 
     icy::Model3D *model;
 
-    enum VisOpt { none, spheres, NACC_case, Jp };
+    enum VisOpt { none, NACC_case, Jp };
     Q_ENUM(VisOpt)
     VisOpt VisualizingVariable = VisOpt::none;
     double ranges[20] = {};
@@ -73,6 +70,8 @@ private:
     // indenter
     vtkNew<vtkCylinderSource> indenterSource;
     vtkNew<vtkPolyDataMapper> indenterMapper;
+    vtkNew<vtkTransform> transform;
+    vtkNew<vtkTransformFilter> transformFilter;
 
     // points
     vtkNew<vtkPoints> points;
@@ -80,10 +79,6 @@ private:
     vtkNew<vtkPolyDataMapper> points_mapper;
     vtkNew<vtkVertexGlyphFilter> points_filter;
     vtkNew<vtkFloatArray> visualized_values;
-
-    // view points as spheres
-    vtkNew<vtkSphereSource> sphereSource;
-    vtkNew<vtkGlyph3D> glyph3D;
 
     // background grid
     vtkNew<vtkStructuredGrid> structuredGrid;

@@ -43,6 +43,7 @@ endif()
       ViewsQt
       FiltersCore
       CommonDataModel
+      CommonTransforms
     )
     find_package(Qt5 COMPONENTS Widgets REQUIRED)
     add_compile_definitions(QT_NO_KEYWORDS)

@@ -17,6 +17,7 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
+    spdlog::info("MainWindow constructor start");
     model.prms.Reset();
     params = new ParamsWrapper(&model.prms);
     worker = new BackgroundWorker(&model);
@@ -88,7 +89,7 @@ MainWindow::MainWindow(QWidget *parent)
     renderer->AddActor(representation.actor_indenter);
     renderer->AddActor(representation.actorText);
     renderer->AddActor(representation.scalarBar);
-//    renderer->AddActor(representation.actor_axes);
+    renderer->AddActor(representation.actor_axes);
 
     // populate combobox
     QMetaEnum qme = QMetaEnum::fromType<icy::VisualRepresentation::VisOpt>();
@@ -169,7 +170,6 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionStart_Pause, &QAction::triggered, this, &MainWindow::simulation_start_pause);
     connect(ui->actionLoad_Parameters, &QAction::triggered, this, &MainWindow::load_parameter_triggered);
     connect(ui->actionReplay, &QAction::triggered, this, &MainWindow::open_replay_triggered);
-    connect(ui->actionExport_Indenter_Forces, &QAction::triggered, this, &MainWindow::export_indenter_force_triggered);
 
     connect(qdsbValRange,QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MainWindow::limits_changed);
 
@@ -179,6 +179,7 @@ MainWindow::MainWindow(QWidget *parent)
     representation.SynchronizeTopology();
     pbrowser->setActiveObject(params);
     updateGUI();
+    spdlog::info("MainWindow constructor done");
 }
 
 
@@ -418,9 +419,14 @@ void MainWindow::load_parameter_triggered()
 {
     QString qFileName = QFileDialog::getOpenFileName(this, "Load Parameters", QDir::currentPath(), "JSON Files (*.json)");
     if(qFileName.isNull())return;
-    model.outputDirectory = model.prms.ParseFile(qFileName.toStdString());
-    this->setWindowTitle(qFileName);
     model.Reset();
+
+    this->setWindowTitle(qFileName);
+    std::pair<std::string, std::string> p = model.prms.ParseFile(qFileName.toStdString());
+    model.outputDirectory = p.first;
+    if(p.second == "") snapshot.GeneratePoints();
+    else snapshot.ReadRawPoints(p.second);
+
     representation.SynchronizeTopology();
     pbrowser->setActiveObject(params);
     updateGUI();
@@ -448,7 +454,6 @@ void MainWindow::save_binary_data()
         QString outputPath = filePath + "/" + "s" + stringIdx + ".h5";
         snapshot.SaveFullSnapshot(outputPath.toStdString());
     }
-
 }
 
 

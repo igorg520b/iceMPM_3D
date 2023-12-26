@@ -3,6 +3,7 @@
 
 #include <spdlog/spdlog.h>
 #include <H5Cpp.h>
+#include "poisson_disk_sampling.h"
 
 #include <filesystem>
 #include <string>
@@ -11,6 +12,8 @@
 #include <fstream>
 #include <algorithm>
 #include <cstdio>
+#include <cmath>
+
 
 void icy::SnapshotManager::SaveFullSnapshot(std::string fileName)
 {
@@ -321,29 +324,95 @@ bool icy::SnapshotManager::ReadNextFrame()
 }
 
 
-
-
-/*
-void icy::SnapshotManager::ReadDirectory(std::string directoryPath)
+void icy::SnapshotManager::ReadRawPoints(std::string fileName)
 {
-    path = directoryPath;
-    // set last_file_index
-    for (const auto & entry : std::filesystem::directory_iterator(directoryPath))
+    if(!std::filesystem::exists(fileName)) throw std::runtime_error("error reading raw points file - no file");;
+
+    spdlog::info("reading raw points file {}",fileName);
+    H5::H5File file(fileName, H5F_ACC_RDONLY);
+
+    H5::DataSet dataset = file.openDataSet("Points_Raw");
+    hsize_t dims[2] = {};
+    dataset.getSpace().getSimpleExtentDims(dims, NULL);
+    int nPoints = dims[0];
+    if(dims[1]!=3) throw std::runtime_error("error reading raw points file - dimensions mismatch");
+    spdlog::info("dims[0] {}, dims[1] {}", dims[0], dims[1]);
+    model->prms.nPts = nPoints;
+
+    std::vector<std::array<float, 3>> buffer;
+    buffer.resize(nPoints);
+    dataset.read(buffer.data(), H5::PredType::NATIVE_FLOAT);
+    file.close();
+
+    model->gpu.cuda_allocate_arrays(model->prms.GridTotal, nPoints);
+
+    const real &h = model->prms.cellsize;
+    const real &bz = model->prms.IceBlockDimZ;
+    const real box_z = model->prms.GridZ*h;
+
+    const real z_offset = (box_z - bz)/2;
+
+    for(int k=0; k<nPoints; k++)
     {
-        std::string fileName = entry.path();
-        std::string extension = fileName.substr(fileName.length()-3,3);
-        if(extension != ".h5") continue;
-        std::string numbers = fileName.substr(fileName.length()-8,5);
-        int idx = std::stoi(numbers);
-        if(idx > last_file_index) last_file_index = idx;
-
-//        std::cout << fileName << ", " << extension << ", " << numbers << std::endl;
+        Point3D p;
+        p.Reset();
+        buffer[k][0] += 5*h;
+        buffer[k][1] += 2*h;
+        buffer[k][2] += z_offset; // center
+        for(int i=0;i<3;i++) p.pos[i] = buffer[k][i];
+        p.pos_initial = p.pos;
+        p.TransferToBuffer(model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, k);
     }
-    spdlog::info("directory scanned; last_file_index is {}", last_file_index);
+    spdlog::info("raw points loaded");
 
+    model->gpu.transfer_ponts_to_device();
+    model->Reset();
+    model->Prepare();
 }
 
-*/
+
+void icy::SnapshotManager::GeneratePoints()
+{
+    spdlog::info("icy::SnapshotManager::GeneratePoints()");
+    const real &bx = model->prms.IceBlockDimX;
+    const real &by = model->prms.IceBlockDimY;
+    const real &bz = model->prms.IceBlockDimZ;
+    const real bvol = bx*by*bz;
+    const real &h = model->prms.cellsize;
+    constexpr real magic_constant = 0.5844;
+
+    const real z_center = model->prms.GridZ*h/2;
+    const real block_z_min = std::max(z_center - bz/2, 0.0);
+    const real block_z_max = std::min(z_center + bz/2, model->prms.GridZ*h);
+    spdlog::info("block_z_range [{}, {}]", block_z_min, block_z_max);
+
+    const real kRadius = cbrt(magic_constant*bvol/model->prms.PointsWanted);
+    const std::array<real, 3>kXMin{5.0*h, 2.0*h, block_z_min};
+    const std::array<real, 3>kXMax{5.0*h+bx, 2.0*h+by, block_z_max};
+
+    spdlog::info("starting thinks::PoissonDiskSampling");
+    std::vector<std::array<real, 3>> prresult = thinks::PoissonDiskSampling(kRadius, kXMin, kXMax);
+    int n = prresult.size();
+    model->prms.nPts = n;
+    spdlog::info("finished thinks::PoissonDiskSampling; {} ", n);
+    model->gpu.cuda_allocate_arrays(model->prms.GridTotal, n);
+
+    model->prms.ParticleVolume = bvol/n;
+    model->prms.ParticleMass = model->prms.ParticleVolume * model->prms.Density;
+    for(int k = 0; k<n; k++)
+    {
+        Point3D p;
+        p.Reset();
+        for(int i=0;i<3;i++) p.pos[i] = prresult[k][i];
+        p.pos_initial = p.pos;
+        p.TransferToBuffer(model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, k);
+    }
+    spdlog::info("icy::SnapshotManager::GeneratePoints() done");
+
+    model->gpu.transfer_ponts_to_device();
+    model->Reset();
+    model->Prepare();
+}
 
 
 /*

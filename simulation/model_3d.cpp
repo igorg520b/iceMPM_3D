@@ -62,50 +62,19 @@ void icy::Model3D::UnlockCycleMutex()
 
 void icy::Model3D::Reset()
 {
+    const real &by = prms.IceBlockDimY;
+    const real &h = prms.cellsize;
+
     // this should be called after prms are set as desired (either via GUI or CLI)
     spdlog::info("icy::Model::Reset()");
 
     prms.SimulationStep = 0;
     prms.SimulationTime = 0;
     compute_time_per_cycle = 0;
-    outputDirectory = "default_output";
 
-    const real &bx = prms.IceBlockDimX;
-    const real &by = prms.IceBlockDimY;
-    const real &bz = prms.IceBlockDimZ;
-    const real bvol = bx*by*bz;
-    const real &h = prms.cellsize;
-    constexpr real magic_constant = 0.5844;
-
-    const real z_center = prms.GridZ*h/2;
-    const real block_z_min = std::max(z_center - bz/2, 0.0);
-    const real block_z_max = std::min(z_center + bz/2, prms.GridZ*h);
-    spdlog::info("block_z_range [{}, {}]", block_z_min, block_z_max);
-    const real kRadius = cbrt(magic_constant*bvol/prms.PointsWanted);
-    const std::array<real, 3>kXMin{5.0*h, 2.0*h, block_z_min};
-    const std::array<real, 3>kXMax{5.0*h+bx, 2.0*h+by, block_z_max};
-
-    spdlog::info("starting thinks::PoissonDiskSampling");
-    std::vector<std::array<real, 3>> prresult = thinks::PoissonDiskSampling(kRadius, kXMin, kXMax);
-    prms.nPts = prresult.size();
-    spdlog::info("finished thinks::PoissonDiskSampling; {} ", prms.nPts);
-    gpu.cuda_allocate_arrays(prms.GridTotal, prms.nPts);
-
-    prms.ParticleVolume = bvol/prms.nPts;
-    prms.ParticleMass = prms.ParticleVolume*prms.Density;
-    for(int k = 0; k<prms.nPts; k++)
-    {
-        Point3D p;
-        p.Reset();
-        for(int i=0;i<3;i++) p.pos[i] = prresult[k][i];
-        p.pos_initial = p.pos;
-        p.TransferToBuffer(gpu.tmp_transfer_buffer, prms.nPtsPitch, k);
-    }
     prms.indenter_y = by + 2*h + prms.IndDiameter/2 - prms.IndDepth;
     prms.indenter_x = prms.indenter_x_initial = 4*h - prms.IndDiameter/2;
 
-    gpu.transfer_ponts_to_device();
-    Prepare();
     spdlog::info("icy::Model::Reset() done");
 }
 

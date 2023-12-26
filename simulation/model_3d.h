@@ -14,7 +14,6 @@
 
 #include "parameters_sim_3d.h"
 #include "point_3d.h"
-#include "poisson_disk_sampling.h"
 #include "gpu_implementation4.h"
 
 #include <Eigen/Core>
@@ -30,6 +29,7 @@ class icy::Model3D
 public:
     Model3D();
     void Reset();
+
     void Prepare();        // invoked once, at simulation start
     bool Step();           // either invoked by Worker or via GUI
     void RequestAbort() {abortRequested = true;}   // asynchronous stop

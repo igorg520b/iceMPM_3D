@@ -4,9 +4,11 @@
 //#include <omp.h>
 #include <algorithm>
 #include <iostream>
+#include <spdlog/spdlog.h>
 
 icy::VisualRepresentation::VisualRepresentation()
 {
+    spdlog::info("VisualRepresentation constructor start");
     int nLut = sizeof lutArrayTemperatureAdj / sizeof lutArrayTemperatureAdj[0];
 //    hueLut->SetNumberOfTableValues(nLut);
 //    for ( int i=0; i<nLut; i++)
@@ -37,46 +39,42 @@ icy::VisualRepresentation::VisualRepresentation()
     hueLut_four->SetTableValue(4, 0, 0.5, 0.5);
     hueLut_four->SetTableRange(0,4);
 
-    indenterMapper->SetInputConnection(indenterSource->GetOutputPort());
-    actor_indenter->SetMapper(indenterMapper);
+    // indenter
+    indenterSource->SetResolution(33);
+    indenterSource->Update();
 
-    indenterMapper->SetInputConnection(indenterSource->GetOutputPort());
+    transform->RotateX(90);
+    transformFilter->SetTransform(transform);
+    transformFilter->SetInputConnection(indenterSource->GetOutputPort());
+    transformFilter->Update();
+
+    indenterMapper->SetInputConnection(transformFilter->GetOutputPort());
+
     actor_indenter->SetMapper(indenterMapper);
     actor_indenter->GetProperty()->EdgeVisibilityOn();
     actor_indenter->GetProperty()->VertexVisibilityOff();
     actor_indenter->GetProperty()->SetColor(0.3,0.1,0.1);
+    actor_indenter->GetProperty()->SetOpacity(0.5);
     actor_indenter->GetProperty()->SetEdgeColor(90.0/255.0, 90.0/255.0, 97.0/255.0);
     actor_indenter->PickableOff();
     actor_indenter->GetProperty()->SetLineWidth(3);
-    actor_indenter->RotateZ(90);
-    actor_indenter->RotateX(90);
 
+    // points and visualized values
     visualized_values->SetName("visualized_values");
 
-
     points_polydata->SetPoints(points);
-
     points_filter->SetInputData(points_polydata);
 
-    glyph3D->SetSourceConnection(sphereSource->GetOutputPort());
-    glyph3D->SetInputData(points_polydata);
-
-//    points_mapper->SetInputData(points_filter->GetOutput());
-    points_mapper->SetInputConnection(glyph3D->GetOutputPort());
+    points_mapper->SetInputData(points_filter->GetOutput());
 
     actor_points->SetMapper(points_mapper);
-    actor_points->GetProperty()->SetPointSize(20);
-//    actor_points->GetProperty()->SetVertexColor(1.,1.,0);
     actor_points->PickableOff();
     actor_points->GetProperty()->SetColor(0.8, 0.4, 0.4);
 
-
     grid_mapper->SetInputData(structuredGrid);
-//    grid_mapper->SetLookupTable(hueLut);
 
     actor_grid->SetMapper(grid_mapper);
     actor_grid->GetProperty()->SetEdgeVisibility(true);
-//    actor_grid->GetProperty()->SetEdgeColor(0.8,0.8,0.8);
     actor_grid->GetProperty()->LightingOff();
     actor_grid->GetProperty()->ShadingOff();
     actor_grid->GetProperty()->SetInterpolationToFlat();
@@ -105,9 +103,7 @@ icy::VisualRepresentation::VisualRepresentation()
     txtprop->SetColor(0,0,0);
     actorText->SetDisplayPosition(500, 30);
 
-    // sphere as particle
-    sphereSource->SetPhiResolution(10);
-    sphereSource->SetThetaResolution(10);
+    spdlog::info("VisualRepresentation constructor done");
 }
 
 
@@ -138,9 +134,10 @@ void icy::VisualRepresentation::SynchronizeTopology()
 
     structuredGrid->SetPoints(grid_points);
 
+    // indenter
     indenterSource->SetRadius(model->prms.IndDiameter/2.f);
-    indenterSource->SetHeight(model->prms.IceBlockDimZ);
-    indenterSource->SetResolution(33);
+    indenterSource->SetHeight(model->prms.GridZ * model->prms.cellsize);
+    indenterSource->Update();
 }
 
 
@@ -157,22 +154,11 @@ void icy::VisualRepresentation::SynchronizeValues()
     double centerVal = 0;
     double range = std::pow(10,ranges[VisualizingVariable]);
 
+    points_mapper->SetInputData(points_filter->GetOutput());
+    actor_points->GetProperty()->SetPointSize(model->prms.ParticleViewSize);
+    points_filter->Update();
 
-    if(VisualizingVariable == VisOpt::spheres)
-    {
-        points_mapper->SetInputConnection(glyph3D->GetOutputPort());
-        sphereSource->SetRadius(model->prms.SphereViewSize);
-        glyph3D->Update();
-    }
-    else
-    {
-        points_mapper->SetInputData(points_filter->GetOutput());
-        actor_points->GetProperty()->SetPointSize(model->prms.ParticleViewSize);
-        points_filter->Update();
-    }
-
-
-    if(VisualizingVariable == VisOpt::none || VisualizingVariable == VisOpt::spheres)
+    if(VisualizingVariable == VisOpt::none)
     {
         points_mapper->ScalarVisibilityOff();
         points_polydata->GetPointData()->RemoveArray(0);
@@ -218,7 +204,7 @@ void icy::VisualRepresentation::SynchronizeValues()
     double indenter_x = model->prms.indenter_x;
     double indenter_y = model->prms.indenter_y;
     double indenter_z = model->prms.GridZ*model->prms.cellsize/2;
-    indenterSource->SetCenter(indenter_y, indenter_z, indenter_x);  // y z x
+    indenterSource->SetCenter(indenter_x, indenter_z, -indenter_y);
 }
 
 
