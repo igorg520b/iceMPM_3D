@@ -75,6 +75,8 @@ void icy::Model3D::Reset()
     prms.indenter_y = by + 2*h + prms.IndDiameter/2 - prms.IndDepth;
     prms.indenter_x = prms.indenter_x_initial = 4*h - prms.IndDiameter/2;
 
+    gpu.indenter_force_history.clear();
+
     spdlog::info("icy::Model::Reset() done");
 }
 

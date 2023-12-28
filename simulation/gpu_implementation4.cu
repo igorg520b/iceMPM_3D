@@ -126,8 +126,15 @@ void CUDART_CB GPU_Implementation4::callback_transfer_from_device_completion(cud
 void GPU_Implementation4::transfer_ponts_to_host_finalize()
 {
     // operations that take place right after the data is transferred to host
+    Vector3r total;
+    total.setZero();
+
     for(int i=0; i<icy::SimParams3D::indenter_array_size; i++)
+    {
         host_side_indenter_force_accumulator[i] /= model->prms.UpdateEveryNthStep;
+        total[i%3] += host_side_indenter_force_accumulator[i];
+    }
+    this->indenter_force_history.push_back(total);
 }
 
 void GPU_Implementation4::cuda_reset_grid()

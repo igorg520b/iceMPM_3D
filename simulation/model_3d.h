@@ -21,7 +21,6 @@
 #include <Eigen/LU>
 
 
-
 namespace icy { class Model3D; }
 
 class icy::Model3D

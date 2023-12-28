@@ -12,10 +12,9 @@ class icy::SnapshotManager
 {
 public:
     icy::Model3D *model;
-
-    int last_file_index = 0;
     bool previous_frame_exists = false;     // false when starting/restarting the simulation
     std::string path;
+    bool export_vtp, export_h5, export_indenter, export_force;
 
     void ReadRawPoints(std::string fileName);
     void GeneratePoints();
@@ -24,14 +23,17 @@ public:
     void ReadFullSnapshot(std::string fileName);
 
     void AllocateMemoryForFrames();
-    void SaveFrame();
+    void SaveFrame();   // export in H5, VTP, VTU, CSV
 
     void ReadFirstFrame(std::string directory);
     bool ReadNextFrame();  // false if reached the end
 
 
-
 private:
+    const std::string dir_vtp = "output_vtp";
+    const std::string dir_indenter = "output_indenter";
+    const std::string dir_points_h5 = "output_h5";
+
     struct VisualPoint
     {
         int id;
@@ -44,6 +46,11 @@ private:
     std::vector<VisualPoint> current_frame, previous_frame, saved_frame;
     std::vector<int> last_refresh_frame;
     std::vector<float> indenter_force_buffer;
+
+    void ExportPointsAsH5();
+    void ExportPointsAsVTP();
+    void ExportIndenterAsVTU();
+    void WriteIndenterForceCSV();
 };
 
 #endif // SNAPSHOTWRITER_H

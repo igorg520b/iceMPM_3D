@@ -14,6 +14,20 @@
 #include <cstdio>
 #include <cmath>
 
+#include <vtkCellArray.h>
+#include <vtkNew.h>
+#include <vtkPoints.h>
+#include <vtkPolyData.h>
+#include <vtkXMLPolyDataWriter.h>
+#include <vtkFloatArray.h>
+#include <vtkPointData.h>
+#include <vtkUnstructuredGrid.h>
+#include <vtkXMLUnstructuredGridWriter.h>
+#include <vtkCylinderSource.h>
+#include <vtkPolyDataMapper.h>
+#include <vtkTransform.h>
+#include <vtkTransformFilter.h>
+#include <vtkAppendFilter.h>
 
 void icy::SnapshotManager::SaveFullSnapshot(std::string fileName)
 {
@@ -33,16 +47,15 @@ void icy::SnapshotManager::SaveFullSnapshot(std::string fileName)
     hsize_t chunk_dims = 1024*1024;
     H5::DSetCreatPropList proplist;
     proplist.setChunk(1, &chunk_dims);
-    proplist.setDeflate(5);
+    proplist.setDeflate(6);
     H5::DataSet dataset_points = file.createDataSet("Points", H5::PredType::NATIVE_DOUBLE, dataspace_points, proplist);
     dataset_points.write(model->gpu.tmp_transfer_buffer, H5::PredType::NATIVE_DOUBLE);
 
-/*
-    hsize_t dims_indneter_force = icy::SimParams3D::indenter_array_size;
-    H5::DataSpace dataspace_indneter_force(1, &dims_indneter_force);
-    H5::DataSet dataset_indneter_force = file.createDataSet("Indenter_Force", H5::PredType::NATIVE_DOUBLE, dataspace_indneter_force);
-    dataset_indneter_force.write(model->gpu.host_side_indenter_force_accumulator, H5::PredType::NATIVE_DOUBLE);
-*/
+    // save indenter force history
+    hsize_t dims_indenter_history[2] {model->gpu.indenter_force_history.size(), 3};
+    H5::DataSpace dataspace_history(2, dims_indenter_history);
+    H5::DataSet dataset_history = file.createDataSet("Indenter_Force_History", H5::PredType::NATIVE_DOUBLE, dataspace_history);
+    dataset_history.write(model->gpu.indenter_force_history.data(), H5::PredType::NATIVE_DOUBLE);
 
     file.close();
     spdlog::info("SaveSnapshot done {}", fileName);
@@ -68,19 +81,19 @@ void icy::SnapshotManager::ReadFullSnapshot(std::string fileName)
     H5::DataSet dataset_points = file.openDataSet("Points");
     dataset_points.read(model->gpu.tmp_transfer_buffer,H5::PredType::NATIVE_DOUBLE);
 
-    /*
-    H5::DataSet dataset_indneter_force = file.openDataSet("Indenter_Force");
-    dataset_indneter_force.read(model->gpu.host_side_indenter_force_accumulator, H5::PredType::NATIVE_DOUBLE);
-      */
+    // read indenter force history
+    hsize_t dims_indenter_history[2] {};
+    H5::DataSet dataset_history = file.openDataSet("Indenter_Force_History");
+    dataset_history.getSpace().getSimpleExtentDims(dims_indenter_history, NULL);
+    model->gpu.indenter_force_history.resize(dims_indenter_history[0]);
+    dataset_history.read(model->gpu.indenter_force_history.data(), H5::PredType::NATIVE_DOUBLE);
 
-    //model->gpu.transfer_ponts_to_host_finalize(model->points);
     file.close();
     previous_frame_exists = false;
     model->outputDirectory = "default_output";
 
     model->gpu.transfer_ponts_to_device();
     model->Prepare();
-
 }
 
 
@@ -100,105 +113,14 @@ void icy::SnapshotManager::AllocateMemoryForFrames()
 void icy::SnapshotManager::SaveFrame()
 {
     spdlog::info("icy::SnapshotManager::SaveFrame()");
-    // populate current_frame (pull and convert to float: idx, pos, vel, Jp_inv)
-    for(int i=0;i<model->prms.nPts;i++)
-    {
-        VisualPoint &vp = current_frame[i];
-        vp.id = i;
-        vp.Jp_inv = (float)icy::Point3D::getJp_inv(model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, i);
-        Vector3r pos = icy::Point3D::getPos(model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, i);
-        Vector3r vel = icy::Point3D::getVelocity(model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, i);
-        for(int j=0;j<3;j++)
-        {
-            vp.p[j] = (float) pos[j];
-            vp.v[j] = (float) vel[j];
-        }
-    }
+    std::filesystem::path odp(model->outputDirectory);
+    if(!std::filesystem::is_directory(odp) || !std::filesystem::exists(odp)) std::filesystem::create_directory(odp);
 
-
-    // populate saved_frame
-    const int current_frame_number = model->prms.AnimationFrameNumber();
-
-    if(!previous_frame_exists)
-    {
-        // saved_frame is a full copy of the current_frame
-        saved_frame = current_frame;
-        std::fill(last_refresh_frame.begin(), last_refresh_frame.end(), current_frame_number);
-        previous_frame_exists = true;
-        previous_frame = current_frame;
-        spdlog::info("saving full frame");
-    }
-    else
-    {
-        const float visual_threshold = 2e-3;
-        const float Jp_inv_threshold = 1e-4;
-        float dt = (float)model->prms.InitialTimeStep;
-        saved_frame.clear();
-        for(int i=0;i<model->prms.nPts;i++)
-        {
-            VisualPoint &p_c = current_frame[i];
-            VisualPoint &p_p = previous_frame[i];
-            int previous_update = last_refresh_frame[i];
-            int elapsed_frames = current_frame_number - previous_update;
-            Eigen::Vector3f predicted_position = p_p.pos() + p_p.vel()*(dt*elapsed_frames);
-            Eigen::Vector3f prediction_error = p_c.pos() - predicted_position;
-            float Jp_diff = abs(p_c.Jp_inv - p_p.Jp_inv);
-            if(prediction_error.norm() > visual_threshold || Jp_diff > Jp_inv_threshold)
-            {
-                last_refresh_frame[i] = current_frame_number;
-                p_p = p_c;
-                saved_frame.push_back(p_c);
-            }
-        }
-        spdlog::info("saving difference; saved_frame.size() = {}",saved_frame.size());
-    }
-
-    // indenter buffer
-    for(int i=0;i<icy::SimParams3D::indenter_array_size;i++)
-        indenter_force_buffer[i] = (float) model->gpu.host_side_indenter_force_accumulator[i];
-
-    char fileName[20];
-    snprintf(fileName, sizeof(fileName), "v%05d.h5", current_frame_number);
-    std::string savePath = model->outputDirectory + "/" + fileName;
-    spdlog::info("saving visual frame {} to file {}", current_frame_number, savePath);
-
-    // ensure that directory exists
-    std::filesystem::path outputDirectory(model->outputDirectory);
-    if(!std::filesystem::is_directory(outputDirectory) || !std::filesystem::exists(outputDirectory))
-        std::filesystem::create_directory(outputDirectory);
-
-    // save!
-    H5::H5File file(savePath, H5F_ACC_TRUNC);
-
-    hsize_t dims_params = sizeof(icy::SimParams3D);
-    H5::DataSpace dataspace_params(1,&dims_params);
-    H5::DataSet dataset_params = file.createDataSet("Params", H5::PredType::NATIVE_B8, dataspace_params);
-    dataset_params.write(&model->prms, H5::PredType::NATIVE_B8);
-
-    hsize_t chunk_dims_indenter = 10000;
-    H5::DSetCreatPropList proplist2;
-    proplist2.setChunk(1, &chunk_dims_indenter);
-    proplist2.setDeflate(5);
-    hsize_t dims_indneter_force = icy::SimParams3D::indenter_array_size;
-    H5::DataSpace dataspace_indneter_force(1, &dims_indneter_force);
-    H5::DataSet dataset_indneter_force = file.createDataSet("Indenter_Force", H5::PredType::NATIVE_FLOAT, dataspace_indneter_force, proplist2);
-    dataset_indneter_force.write(indenter_force_buffer.data(), H5::PredType::NATIVE_FLOAT);
-
-
-    hsize_t dims_points = sizeof(VisualPoint)*saved_frame.size();
-    hsize_t dims_unlimited = H5S_UNLIMITED;
-    H5::DataSpace dataspace_points(1, &dims_points, &dims_unlimited);
-    hsize_t chunk_dims = sizeof(VisualPoint)*1024;
-    H5::DSetCreatPropList proplist;
-    proplist.setChunk(1, &chunk_dims);
-    proplist.setDeflate(5);
-    H5::DataSet dataset_points = file.createDataSet("Points", H5::PredType::NATIVE_B8, dataspace_points, proplist);
-    dataset_points.write(saved_frame.data(), H5::PredType::NATIVE_B8);
-
-    file.close();
-    spdlog::info("saved_frame.size {}; {}", saved_frame.size(), fileName);
+    if(export_vtp) ExportPointsAsVTP();
+    if(export_h5) ExportPointsAsH5();
+    if(export_indenter) WriteIndenterForceCSV();
+    if(export_force) WriteIndenterForceCSV();
 }
-
 
 void icy::SnapshotManager::ReadFirstFrame(std::string directory)
 {
@@ -262,7 +184,6 @@ void icy::SnapshotManager::ReadFirstFrame(std::string directory)
     spdlog::info("icy::SnapshotManager::ReadFirstFrame done");
 }
 
-
 bool icy::SnapshotManager::ReadNextFrame()
 {
     // this is different from ReadFirstFrame - the updates are iterative
@@ -325,7 +246,6 @@ bool icy::SnapshotManager::ReadNextFrame()
     return true;
 }
 
-
 void icy::SnapshotManager::ReadRawPoints(std::string fileName)
 {
     if(!std::filesystem::exists(fileName)) throw std::runtime_error("error reading raw points file - no file");;
@@ -372,7 +292,6 @@ void icy::SnapshotManager::ReadRawPoints(std::string fileName)
     model->Prepare();
 }
 
-
 void icy::SnapshotManager::GeneratePoints()
 {
     spdlog::info("icy::SnapshotManager::GeneratePoints()");
@@ -415,6 +334,223 @@ void icy::SnapshotManager::GeneratePoints()
     model->Reset();
     model->Prepare();
 }
+
+
+void icy::SnapshotManager::ExportPointsAsH5()
+{
+    spdlog::info("icy::SnapshotManager::ExportPointsAsH5()");
+
+    // populate current_frame (pull and convert to float: idx, pos, vel, Jp_inv)
+    for(int i=0;i<model->prms.nPts;i++)
+    {
+        VisualPoint &vp = current_frame[i];
+        vp.id = i;
+        vp.Jp_inv = (float)icy::Point3D::getJp_inv(model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, i);
+        Vector3r pos = icy::Point3D::getPos(model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, i);
+        Vector3r vel = icy::Point3D::getVelocity(model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, i);
+        for(int j=0;j<3;j++)
+        {
+            vp.p[j] = (float) pos[j];
+            vp.v[j] = (float) vel[j];
+        }
+    }
+
+    // populate saved_frame
+    const int current_frame_number = model->prms.AnimationFrameNumber();
+
+    if(!previous_frame_exists)
+    {
+        // saved_frame is a full copy of the current_frame
+        saved_frame = current_frame;
+        std::fill(last_refresh_frame.begin(), last_refresh_frame.end(), current_frame_number);
+        previous_frame_exists = true;
+        previous_frame = current_frame;
+        spdlog::info("saving full frame");
+    }
+    else
+    {
+        const float visual_threshold = 2e-3;
+        const float Jp_inv_threshold = 1e-4;
+        float dt = (float)model->prms.InitialTimeStep;
+        saved_frame.clear();
+        for(int i=0;i<model->prms.nPts;i++)
+        {
+            VisualPoint &p_c = current_frame[i];
+            VisualPoint &p_p = previous_frame[i];
+            int previous_update = last_refresh_frame[i];
+            int elapsed_frames = current_frame_number - previous_update;
+            Eigen::Vector3f predicted_position = p_p.pos() + p_p.vel()*(dt*elapsed_frames);
+            Eigen::Vector3f prediction_error = p_c.pos() - predicted_position;
+            float Jp_diff = abs(p_c.Jp_inv - p_p.Jp_inv);
+            if(prediction_error.norm() > visual_threshold || Jp_diff > Jp_inv_threshold)
+            {
+                last_refresh_frame[i] = current_frame_number;
+                p_p = p_c;
+                saved_frame.push_back(p_c);
+            }
+        }
+        spdlog::info("saving difference; saved_frame.size() = {}",saved_frame.size());
+    }
+
+    // indenter buffer
+    for(int i=0;i<icy::SimParams3D::indenter_array_size;i++)
+        indenter_force_buffer[i] = (float) model->gpu.host_side_indenter_force_accumulator[i];
+
+    char fileName[20];
+    snprintf(fileName, sizeof(fileName), "v%05d.h5", current_frame_number);
+    std::string saveDir = model->outputDirectory + "/" + dir_points_h5;
+    std::string fullFilePath = saveDir + "/" + fileName;
+    spdlog::info("saving frame {} to file {}", current_frame_number, fullFilePath);
+
+    // ensure that directory exists
+    std::filesystem::path od(saveDir);
+    if(!std::filesystem::is_directory(od) || !std::filesystem::exists(od)) std::filesystem::create_directory(od);
+
+    // save!
+    H5::H5File file(fullFilePath, H5F_ACC_TRUNC);
+
+    hsize_t dims_params = sizeof(icy::SimParams3D);
+    H5::DataSpace dataspace_params(1,&dims_params);
+    H5::DataSet dataset_params = file.createDataSet("Params", H5::PredType::NATIVE_B8, dataspace_params);
+    dataset_params.write(&model->prms, H5::PredType::NATIVE_B8);
+
+    hsize_t chunk_dims_indenter = 10000;
+    H5::DSetCreatPropList proplist2;
+    proplist2.setChunk(1, &chunk_dims_indenter);
+    proplist2.setDeflate(5);
+    hsize_t dims_indneter_force = icy::SimParams3D::indenter_array_size;
+    H5::DataSpace dataspace_indneter_force(1, &dims_indneter_force);
+    H5::DataSet dataset_indneter_force = file.createDataSet("Indenter_Force", H5::PredType::NATIVE_FLOAT, dataspace_indneter_force, proplist2);
+    dataset_indneter_force.write(indenter_force_buffer.data(), H5::PredType::NATIVE_FLOAT);
+
+
+    hsize_t dims_points = sizeof(VisualPoint)*saved_frame.size();
+    hsize_t dims_unlimited = H5S_UNLIMITED;
+    H5::DataSpace dataspace_points(1, &dims_points, &dims_unlimited);
+    hsize_t chunk_dims = sizeof(VisualPoint)*1024;
+    H5::DSetCreatPropList proplist;
+    proplist.setChunk(1, &chunk_dims);
+    proplist.setDeflate(5);
+    H5::DataSet dataset_points = file.createDataSet("Points", H5::PredType::NATIVE_B8, dataspace_points, proplist);
+    dataset_points.write(saved_frame.data(), H5::PredType::NATIVE_B8);
+
+    file.close();
+}
+
+
+void icy::SnapshotManager::ExportPointsAsVTP()
+{
+    std::string saveDir = model->outputDirectory + "/" + dir_vtp;
+
+    // ensure that directory exists
+    std::filesystem::path od(saveDir);
+    if(!std::filesystem::is_directory(od) || !std::filesystem::exists(od)) std::filesystem::create_directory(od);
+
+    int frame = model->prms.AnimationFrameNumber();
+
+    char fileName[20];
+    snprintf(fileName, sizeof(fileName), "p_%05d.vtp", frame);
+    std::string savePath = saveDir + "/" + fileName;
+    spdlog::info("export points {} to file {}", frame, savePath);
+
+
+
+    spdlog::info("icy::SnapshotManager::ExportPointsAsVTP()");
+    spdlog::info("export_vtu {}", frame);
+    int n = model->prms.nPts;
+
+    vtkNew<vtkPoints> points;
+    vtkNew<vtkFloatArray> values;
+    points->SetNumberOfPoints(n);
+    values->SetNumberOfValues(n);
+    values->SetName("Jp_inv");
+
+    for(int i=0;i<n;i++)
+    {
+        Vector3r pos = icy::Point3D::getPos(model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, i);
+        double Jp_inv = icy::Point3D::getJp_inv(model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, i);
+        points->SetPoint(i, pos[0], pos[1], pos[2]);
+        values->SetValue(i, Jp_inv);
+    }
+    values->Modified();
+
+    vtkNew<vtkPolyData> polydata;
+    polydata->SetPoints(points);
+    polydata->GetPointData()->AddArray(values);
+    polydata->GetPointData()->SetActiveScalars("Jp_inv");
+
+    // Write the file
+    vtkNew<vtkXMLPolyDataWriter> writer;
+    writer->SetFileName(savePath.c_str());
+    writer->SetInputData(polydata);
+    writer->Write();
+
+    spdlog::info("export_vtk frame done {}", frame);
+}
+
+void icy::SnapshotManager::ExportIndenterAsVTU()
+{
+    std::string saveDir = model->outputDirectory + "/" + dir_indenter;
+
+    // ensure that directory exists
+    std::filesystem::path od(saveDir);
+    if(!std::filesystem::is_directory(od) || !std::filesystem::exists(od)) std::filesystem::create_directory(od);
+
+    int frame = model->prms.AnimationFrameNumber();
+
+    char fileName[20];
+    snprintf(fileName, sizeof(fileName), "i_%05d.vtu", frame);
+    std::string savePath = saveDir + "/" + fileName;
+    spdlog::info("export indenter vtu {} to file {}", frame, savePath);
+
+    vtkNew<vtkCylinderSource> cylinder;
+    vtkNew<vtkTransform> transform;
+    vtkNew<vtkTransformFilter> transformFilter;
+    vtkNew<vtkAppendFilter> appendFilter;
+    vtkNew<vtkUnstructuredGrid> unstructuredGrid;
+    vtkNew<vtkXMLUnstructuredGridWriter> writer2;
+
+    cylinder->SetResolution(33);
+    cylinder->SetRadius(model->prms.IndDiameter/2.f);
+    cylinder->SetHeight(model->prms.GridZ * model->prms.cellsize);
+
+    double indenter_x = model->prms.indenter_x;
+    double indenter_y = model->prms.indenter_y;
+    double indenter_z = model->prms.GridZ * model->prms.cellsize/2;
+    cylinder->SetCenter(indenter_x, indenter_z, -indenter_y);
+    cylinder->Update();
+
+    transform->RotateX(90);
+    transformFilter->SetTransform(transform);
+    transformFilter->SetInputConnection(cylinder->GetOutputPort());
+    transformFilter->Update();
+
+    appendFilter->SetInputConnection(transformFilter->GetOutputPort());
+    appendFilter->Update();
+
+    unstructuredGrid->ShallowCopy(appendFilter->GetOutput());
+
+    // Write the unstructured grid.
+    writer2->SetFileName(savePath.c_str());
+    writer2->SetInputData(unstructuredGrid);
+    writer2->Write();
+    }
+
+void icy::SnapshotManager::WriteIndenterForceCSV()
+{
+    spdlog::info("icy::SnapshotManager::WriteIndenterForceCSV()");
+
+    std::string fullFilePath = model->outputDirectory + "/indenter_force.csv";
+    std::ofstream ofs(fullFilePath, std::ofstream::out | std::ofstream::trunc);
+    ofs << "fx,fy,fz,F_total\n";
+    for(int i=0;i<model->gpu.indenter_force_history.size();i++)
+    {
+        Vector3r &v = model->gpu.indenter_force_history[i];
+        ofs << v[0] << ',' << v[1] << ',' << v[2] << ',' << v.norm() << '\n';
+    }
+    ofs.close();
+}
+
 
 
 /*

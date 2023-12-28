@@ -22,14 +22,15 @@ else()
     find_package(spdlog REQUIRED)
 endif()
 
-
-
 # Qt GUI executable
     find_package(VTK 9.1 HINTS "C:\\libraries\\vtk-build\\lib\\cmake\\vtk-9.1" REQUIRED COMPONENTS
       CommonColor
       CommonCore
+      FiltersCore
       FiltersSources
       FiltersGeometry
+      FiltersGeneral
+      FiltersModeling
       InteractionStyle
       RenderingContextOpenGL2
       RenderingCore
@@ -40,9 +41,10 @@ endif()
       RenderingAnnotation
       RenderingLabel
       IOImage
+      IOXML
       ViewsQt
-      FiltersCore
       CommonDataModel
+      CommonTransforms
     )
     find_package(Qt5 COMPONENTS Widgets REQUIRED)
     add_compile_definitions(QT_NO_KEYWORDS)

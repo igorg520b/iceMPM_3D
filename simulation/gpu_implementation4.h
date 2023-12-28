@@ -8,6 +8,7 @@
 #include "point_3d.h"
 
 #include <functional>
+#include <vector>
 
 __global__ void kernel_p2g();
 __global__ void kernel_g2p();
@@ -51,6 +52,7 @@ public:
 
     real *tmp_transfer_buffer = nullptr; // buffer in page-locked memory for transferring the data between device and host
     real *host_side_indenter_force_accumulator = nullptr;
+    std::vector<Vector3r> indenter_force_history;
 
 private:
 
