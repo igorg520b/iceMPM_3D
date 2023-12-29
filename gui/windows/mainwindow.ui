@@ -32,7 +32,6 @@
     <addaction name="actionSave_Snapshot_As"/>
     <addaction name="actionLoad_Parameters"/>
     <addaction name="separator"/>
-    <addaction name="actionReplay"/>
     <addaction name="separator"/>
     <addaction name="separator"/>
     <addaction name="action_quit"/>
@@ -42,20 +41,14 @@
      <string>Tools</string>
     </property>
     <addaction name="action_camera_reset"/>
-    <addaction name="actionCreate_Video"/>
-    <addaction name="actionScreenshot"/>
     <addaction name="separator"/>
-    <addaction name="actionTake_Screenshots"/>
     <addaction name="actionSave_Binary_Data"/>
-    <addaction name="actionExport_VTU"/>
-    <addaction name="actionExport_Indenter_Forces"/>
    </widget>
    <widget class="QMenu" name="menuSimulation">
     <property name="title">
      <string>Simulation</string>
     </property>
     <addaction name="actionStart_Pause"/>
-    <addaction name="actionReset"/>
    </widget>
    <widget class="QMenu" name="menuView">
     <property name="title">
@@ -127,22 +120,6 @@
     <string>Ctrl+O</string>
    </property>
   </action>
-  <action name="actionCreate_Video">
-   <property name="text">
-    <string>Create Video</string>
-   </property>
-   <property name="shortcut">
-    <string>F3</string>
-   </property>
-  </action>
-  <action name="actionScreenshot">
-   <property name="text">
-    <string>Screenshot</string>
-   </property>
-   <property name="shortcut">
-    <string>F11</string>
-   </property>
-  </action>
   <action name="actionStart_Pause">
    <property name="checkable">
     <bool>true</bool>
@@ -157,22 +134,6 @@
    </property>
    <property name="shortcut">
     <string>F5</string>
-   </property>
-  </action>
-  <action name="actionReset">
-   <property name="text">
-    <string>Reset</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+R</string>
-   </property>
-  </action>
-  <action name="actionTake_Screenshots">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>Take Screenshots</string>
    </property>
   </action>
   <action name="actionLoad_Parameters">
@@ -191,11 +152,6 @@
     <string>Save Binary Data</string>
    </property>
   </action>
-  <action name="actionExport_Indenter_Forces">
-   <property name="text">
-    <string>Export Indenter Forces</string>
-   </property>
-  </action>
   <action name="actionSave_Snapshot_As">
    <property name="icon">
     <iconset resource="../../icons.qrc">
@@ -206,22 +162,6 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+S</string>
-   </property>
-  </action>
-  <action name="actionReplay">
-   <property name="text">
-    <string>Replay...</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+W</string>
-   </property>
-  </action>
-  <action name="actionExport_VTU">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>Export VTU</string>
    </property>
   </action>
  </widget>

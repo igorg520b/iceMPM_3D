@@ -133,6 +133,10 @@ void icy::SimParams3D::ComputeHelperVariables()
 
     IndRSq = IndDiameter*IndDiameter/4.;
     GridTotal = GridX*GridY*GridZ;
+
+    // indeter force recording
+    n_indenter_subdivisions_angular = (int)(pi*IndDiameter / cellsize);
+    indenter_array_size  = 3*n_indenter_subdivisions_angular*GridZ;
 }
 
 void icy::SimParams3D::ComputeCamClayParams2()

@@ -74,6 +74,12 @@ class ParamsWrapper : public QObject
     Q_PROPERTY(double IndDepth READ getIndDepth NOTIFY propertyChanged)
     double getIndDepth() {return prms->IndDepth;}
 
+    Q_PROPERTY(double IndAngSubd READ getIndAngSubd NOTIFY propertyChanged)
+    double getIndAngSubd() {return prms->n_indenter_subdivisions_angular;}
+
+    Q_PROPERTY(double IndArraySize READ getIndArraySize NOTIFY propertyChanged)
+    double getIndArraySize() {return prms->indenter_array_size;}
+
 
     // ice block
     Q_PROPERTY(int b_PtActual READ getPointCountActual NOTIFY propertyChanged)

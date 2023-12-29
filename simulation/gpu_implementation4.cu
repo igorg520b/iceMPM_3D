@@ -63,13 +63,13 @@ void GPU_Implementation4::cuda_allocate_arrays(size_t nGridNodes, size_t nPoints
     if(err != cudaSuccess) throw std::runtime_error("cuda_allocate_arrays");
     model->prms.nPtsPitch /= sizeof(real);
 
-    err = cudaMalloc(&model->prms.indenter_force_accumulator, sizeof(real)*icy::SimParams3D::indenter_array_size);
+    err = cudaMalloc(&model->prms.indenter_force_accumulator, sizeof(real)*model->prms.indenter_array_size);
     if(err != cudaSuccess) throw std::runtime_error("cuda_allocate_arrays");
 
     // pinned host memory
     err = cudaMallocHost(&tmp_transfer_buffer, sizeof(real)*model->prms.nPtsPitch*icy::SimParams3D::nPtsArrays);
     if(err!=cudaSuccess) throw std::runtime_error("cuda_allocate_arrays");
-    err = cudaMallocHost(&host_side_indenter_force_accumulator, sizeof(real)*icy::SimParams3D::indenter_array_size);
+    err = cudaMallocHost(&host_side_indenter_force_accumulator, sizeof(real)*model->prms.indenter_array_size);
     if(err!=cudaSuccess) throw std::runtime_error("cuda_allocate_arrays");
 
     double MemGrid = (double)model->prms.nGridPitch*sizeof(real)*icy::SimParams3D::nGridArrays/(1024*1024);
@@ -88,7 +88,7 @@ void GPU_Implementation4::transfer_ponts_to_device()
                      pitch*sizeof(real)*icy::SimParams3D::nPtsArrays, cudaMemcpyHostToDevice);
     if(err != cudaSuccess) throw std::runtime_error("transfer_points_to_device");
 
-    memset(host_side_indenter_force_accumulator, 0, sizeof(real)*icy::SimParams3D::indenter_array_size);
+    memset(host_side_indenter_force_accumulator, 0, sizeof(real)*model->prms.indenter_array_size);
     spdlog::info("GPU_Implementation4::transfer_ponts_to_device() done");
 }
 
@@ -101,7 +101,7 @@ void GPU_Implementation4::cuda_transfer_from_device()
     if(err != cudaSuccess) throw std::runtime_error("cuda_transfer_from_device");
 
     err = cudaMemcpyAsync(host_side_indenter_force_accumulator, model->prms.indenter_force_accumulator,
-                          sizeof(real)*icy::SimParams3D::indenter_array_size,
+                          sizeof(real)*model->prms.indenter_array_size,
                           cudaMemcpyDeviceToHost, streamCompute);
     if(err != cudaSuccess) throw std::runtime_error("cuda_transfer_from_device");
 
@@ -129,7 +129,7 @@ void GPU_Implementation4::transfer_ponts_to_host_finalize()
     Vector3r total;
     total.setZero();
 
-    for(int i=0; i<icy::SimParams3D::indenter_array_size; i++)
+    for(int i=0; i<model->prms.indenter_array_size; i++)
     {
         host_side_indenter_force_accumulator[i] /= model->prms.UpdateEveryNthStep;
         total[i%3] += host_side_indenter_force_accumulator[i];
@@ -147,7 +147,7 @@ void GPU_Implementation4::cuda_reset_grid()
 void GPU_Implementation4::cuda_reset_indenter_force_accumulator()
 {
     cudaError_t err = cudaMemsetAsync(model->prms.indenter_force_accumulator, 0,
-                                      sizeof(real)*icy::SimParams3D::indenter_array_size, streamCompute);
+                                      sizeof(real)*model->prms.indenter_array_size, streamCompute);
     if(err != cudaSuccess) throw std::runtime_error("cuda_reset_grid error");
 }
 
@@ -455,16 +455,11 @@ __global__ void kernel_update_nodes(real indenter_x, real indenter_y)
             Vector3r force = (prev_velocity-velocity)*mass/dt;
             double angle = atan2(n[0],n[1]);
             angle += icy::SimParams3D::pi;
-            angle *= icy::SimParams3D::n_indenter_subdivisions_angular/(2*icy::SimParams3D::pi);
-            int index_angle = min(max((int)angle, 0), icy::SimParams3D::n_indenter_subdivisions_angular-1);
-
-
-            int index_z = (int)((double)idx_z*icy::SimParams3D::n_indenter_subdivisions_transverse/gridZ);
-            index_z = min(max(index_z,0),icy::SimParams3D::n_indenter_subdivisions_transverse-1);
-
-            int index = index_angle + index_z*icy::SimParams3D::n_indenter_subdivisions_angular;
-
-            for(int i=0;i<3;i++) atomicAdd(&gprms.indenter_force_accumulator[i+3*index], force[i]);
+            angle *= gprms.n_indenter_subdivisions_angular/(2*icy::SimParams3D::pi);
+            int index_angle = min(max((int)angle, 0), gprms.n_indenter_subdivisions_angular-1);
+            int index_z = min(max(idx_z,0),gridZ-1);
+            int index = index_z + index_angle*gridZ;
+//            for(int i=0;i<3;i++) atomicAdd(&gprms.indenter_force_accumulator[i+3*index], force[i]);
         }
     }
 

@@ -34,10 +34,6 @@
 #include <vtkProperty.h>
 #include <vtkNew.h>
 
-#include <vtkWindowToImageFilter.h>
-#include <vtkPNGWriter.h>
-#include <vtkInteractorStyleRubberBand2D.h>
-
 #include "objectpropertybrowser.h"
 #include "vtk_representation.h"
 #include "model_3d.h"
@@ -70,28 +66,26 @@ public:
     icy::Model3D model;
 
 private Q_SLOTS:
-    void quit_triggered();
 
     void background_worker_paused();
     void simulation_data_ready();
 
-    void simulation_start_pause(bool checked);
     void cameraReset_triggered();
+    void quit_triggered();
     void open_snapshot_triggered();
-    void save_snapshot_triggered();
+    void simulation_start_pause(bool checked);
     void load_parameter_triggered();
-    void open_replay_triggered();
+    void export_binary_data_triggered(bool checked);
+    void save_snapshot_triggered();
 
-    void sliderValueChanged(int val);
     void comboboxIndexChanged_visualizations(int index);
-    void createVideo_triggered();
-    void screenshot_triggered();
     void limits_changed(double val);
 
 private:
     void updateGUI();   // when simulation is started/stopped or when a step is advanced
     void updateActorText();
     void save_binary_data();
+    void restore_settings();
 
     BackgroundWorker *worker;
     icy::VisualRepresentation representation;
@@ -103,7 +97,6 @@ private:
     QLabel *labelElapsedTime;
     QLabel *labelStepCount;
     QComboBox *comboBox_visualizations;
-    QSlider *slider1;
     QDoubleSpinBox *qdsbValRange;   // high and low limits for value scale
 
     ObjectPropertyBrowser *pbrowser;    // to show simulation settings/properties
@@ -113,13 +106,5 @@ private:
     vtkNew<vtkGenericOpenGLRenderWindow> renderWindow;
     QVTKOpenGLNativeWidget *qt_vtk_widget;
     vtkNew<vtkRenderer> renderer;
-
-    // other
-    const std::string screenshot_directory = "screenshots";
-    bool replayMode = false;
-    int replayFrame;
-
-    vtkNew<vtkWindowToImageFilter> windowToImageFilter;
-    vtkNew<vtkPNGWriter> writerPNG;
 };
 #endif // MAINWINDOW_H

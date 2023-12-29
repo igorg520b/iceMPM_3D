@@ -154,9 +154,9 @@ void icy::VisualRepresentation::SynchronizeValues()
     double centerVal = 0;
     double range = std::pow(10,ranges[VisualizingVariable]);
 
-    points_mapper->SetInputData(points_filter->GetOutput());
     actor_points->GetProperty()->SetPointSize(model->prms.ParticleViewSize);
     points_filter->Update();
+
 
     if(VisualizingVariable == VisOpt::none)
     {

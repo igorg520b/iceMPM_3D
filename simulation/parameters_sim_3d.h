@@ -46,9 +46,8 @@ public:
     real *grid_array;      // device-side grid data
     real *pts_array;
     size_t nPtsPitch, nGridPitch; // in number of elements(!), for coalesced access on the device
-    constexpr static int n_indenter_subdivisions_angular = 360;
-    constexpr static int n_indenter_subdivisions_transverse = 512;
-    constexpr static int indenter_array_size = 3*n_indenter_subdivisions_angular*n_indenter_subdivisions_transverse;
+    int n_indenter_subdivisions_angular;
+    int indenter_array_size;
     real *indenter_force_accumulator; // size is indenter_array_size
     int tpb_P2G, tpb_Upd, tpb_G2P;  // threads per block for each operation
 
