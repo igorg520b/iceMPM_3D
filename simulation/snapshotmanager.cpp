@@ -280,6 +280,10 @@ void icy::SnapshotManager::ReadRawPoints(std::string fileName)
 
     const real z_offset = (box_z - bz)/2;
 
+    model->prms.ParticleVolume = model->prms.bvol()/nPoints;
+    model->prms.ParticleMass = model->prms.ParticleVolume * model->prms.Density;
+
+
     for(int k=0; k<nPoints; k++)
     {
         Point3D p;
@@ -304,7 +308,7 @@ void icy::SnapshotManager::GeneratePoints()
     const real &bx = model->prms.IceBlockDimX;
     const real &by = model->prms.IceBlockDimY;
     const real &bz = model->prms.IceBlockDimZ;
-    const real bvol = bx*by*bz;
+    const real bvol = model->prms.bvol();
     const real &h = model->prms.cellsize;
     constexpr real magic_constant = 0.5844;
 

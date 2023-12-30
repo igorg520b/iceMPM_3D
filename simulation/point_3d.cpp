@@ -8,7 +8,7 @@
 
 void icy::Point3D::Reset()
 {
-    pos = pos_initial;
+//    pos = pos_initial;
     Fe.setIdentity();
     velocity.setZero();
     Bp.setZero();

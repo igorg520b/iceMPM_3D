@@ -82,10 +82,13 @@ class ParamsWrapper : public QObject
 
 
     // ice block
-    Q_PROPERTY(int b_PtActual READ getPointCountActual NOTIFY propertyChanged)
+    Q_PROPERTY(int PtActual READ getPointCountActual NOTIFY propertyChanged)
     int getPointCountActual() {return prms->nPts;}
 
-    Q_PROPERTY(QString b_Grid READ getGridDimensions NOTIFY propertyChanged)
+    Q_PROPERTY(int PtPitch READ getPointPitch NOTIFY propertyChanged)
+    int getPointPitch() {return prms->nPtsPitch;}
+
+    Q_PROPERTY(QString Grid READ getGridDimensions NOTIFY propertyChanged)
     QString getGridDimensions() {return QString("%1 x %2 x %3").arg(prms->GridX).arg(prms->GridY).arg(prms->GridZ);}
 
     Q_PROPERTY(double nacc_beta READ getNaccBeta NOTIFY propertyChanged)
@@ -96,7 +99,6 @@ class ParamsWrapper : public QObject
 
     Q_PROPERTY(double nacc_M READ getNaccM NOTIFY propertyChanged)
     double getNaccM() {return sqrt(prms->NACC_M);}
-
 
 
     // Drucker-Prager

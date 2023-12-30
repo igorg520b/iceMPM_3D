@@ -83,6 +83,7 @@ public:
     void ComputeLame();
     void ComputeCamClayParams2();
     void ComputeHelperVariables();
+    real bvol() {return IceBlockDimX*IceBlockDimY*IceBlockDimZ;}
 
     int AnimationFrameNumber() { return SimulationStep / UpdateEveryNthStep;}
 };

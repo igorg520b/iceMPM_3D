@@ -110,17 +110,14 @@ void GPU_Implementation4::cuda_transfer_from_device()
 
     void* userData = reinterpret_cast<void*>(this);
     cudaStreamAddCallback(streamCompute, GPU_Implementation4::callback_transfer_from_device_completion, userData, 0);
-    spdlog::info("GPU_Implementation4::cuda_transfer_from_device() done and callback placed");
 }
 
 void CUDART_CB GPU_Implementation4::callback_transfer_from_device_completion(cudaStream_t stream, cudaError_t status, void *userData)
 {
-    spdlog::info("GPU_Implementation4::callback_transfer_from_device_completion");
     // simulation data was copied to host memory -> proceed with processing of this data
     GPU_Implementation4 *gpu = reinterpret_cast<GPU_Implementation4*>(userData);
     gpu->transfer_ponts_to_host_finalize();
     if(gpu->transfer_completion_callback) gpu->transfer_completion_callback();
-    spdlog::info("GPU_Implementation4::callback_transfer_from_device_completion done");
 }
 
 void GPU_Implementation4::transfer_ponts_to_host_finalize()

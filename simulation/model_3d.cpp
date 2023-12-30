@@ -37,7 +37,6 @@ bool icy::Model3D::Step()
     processing_current_cycle_data.lock();   // if locked, previous results are not yet processed by the host
 
     gpu.cuda_transfer_from_device();
-    spdlog::info("went past cuda_transfer_from_device()");
 
     if(prms.SimulationStep % (prms.UpdateEveryNthStep*2) != 0)
     {
