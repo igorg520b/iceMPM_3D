@@ -456,7 +456,7 @@ __global__ void kernel_update_nodes(real indenter_x, real indenter_y)
             int index_angle = min(max((int)angle, 0), gprms.n_indenter_subdivisions_angular-1);
             int index_z = min(max(idx_z,0),gridZ-1);
             int index = index_z + index_angle*gridZ;
-//            for(int i=0;i<3;i++) atomicAdd(&gprms.indenter_force_accumulator[i+3*index], force[i]);
+            for(int i=0;i<3;i++) atomicAdd(&gprms.indenter_force_accumulator[i+3*index], force[i]);
         }
     }
 
