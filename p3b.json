@@ -1,12 +1,12 @@
 {
-"OutputDirectory":"cm_output1",
-"InputRawPoints":"/media/s2/Archive1/MPM_2023_results/raw_points/500k.h5",
+"OutputDirectory":"cm_output_50m",
+"InputRawPoints":"/media/s2/Archive1/MPM_2023_results/raw_points/80m.h5",
 
-"ParticleViewSize":2.0,
-"InitialTimeStep":4.0e-5,
-"GridX":64,
-"GridY":27,
-"GridZ":56,
+"ParticleViewSize":1.0,
+"InitialTimeStep":1.0e-5,
+"GridX":512,
+"GridY":216,
+"GridZ":400,
 "GridXDimension":3.3,
 
 "YoungsModulus":5.0e8,
@@ -23,5 +23,3 @@
 "IndVelocity":0.2,
 "IndDepth":0.101
 }
-
-

@@ -3,17 +3,17 @@
 "InputRawPoints":"/media/s2/Archive1/MPM_2023_results/raw_points/10m.h5",
 
 "ParticleViewSize":1.0,
-"InitialTimeStep":1.0e-5,
-"GridX":256,
-"GridY":108,
-"GridZ":200,
+"InitialTimeStep":2.0e-5,
+"GridX":128,
+"GridY":54,
+"GridZ":110,
 "GridXDimension":3.3,
 
 "YoungsModulus":5.0e8,
 "IceCompressiveStrength":100e6,
 "IceTensileStrength":10e6,
-"IceShearStrength":4.5e6,
-"DP_phi":69,
+"IceShearStrength":5e6,
+"DP_phi":70,
 
 "SimulationEndTime":12,
 "PoissonsRatio":0.3,
