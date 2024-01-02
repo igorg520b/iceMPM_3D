@@ -560,6 +560,19 @@ void icy::SnapshotManager::WriteIndenterForceCSV()
 }
 
 
+std::vector<std::array<float, 3>> icy::SnapshotManager::GenerateBlock(float bx, float by, float bz, int n)
+{
+    constexpr float magic_constant = 0.58;
+    const float bvol = bx*by*bz;
+    const float kRadius = cbrt(magic_constant*bvol/n);
+
+    const std::array<float, 3>kXMin{0, 0, 0};
+    const std::array<float, 3>kXMax{bx, by, bz};
+    std::vector<std::array<float, 3>> prresult = thinks::PoissonDiskSampling(kRadius, kXMin, kXMax);
+    return prresult;
+}
+
+
 
 /*
 attributes save/load

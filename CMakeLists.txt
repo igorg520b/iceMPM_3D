@@ -13,7 +13,6 @@ set(CMAKE_AUTORCC ON)
 set(CUDA_TOOLKIT_ROOT_DIR "/usr/local/cuda")
 include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 
-
 find_package(Eigen3 REQUIRED NO_MODULE HINTS "C:\\libraries\\eigen-build")
 if(WIN32)
     add_compile_definitions(H5_BUILT_AS_DYNAMIC_LIB)
@@ -141,8 +140,69 @@ endif()
         target_link_libraries(iceMPM_GUI_3D PRIVATE gomp)
     endif()
 ]]
+
+
+
+
+
+
+# CLI version
+
+add_executable(cm
+    cli/main.cpp
+
+    # simulation
+    simulation/parameters_sim_3d.h
+    simulation/parameters_sim_3d.cpp
+    simulation/model_3d.cpp
+    simulation/model_3d.h
+    simulation/point_3d.h
+    simulation/point_3d.cpp
+
+    # cuda
+    simulation/givens.cuh
+    simulation/helper_math.cuh
+    simulation/gpu_implementation4.h
+    simulation/gpu_implementation4.cu
+    simulation/constitutive_model.cu
+
+    # saving files
+    simulation/snapshotmanager.h
+    simulation/snapshotmanager.cpp
+)
+
+set_target_properties(cm PROPERTIES CUDA_ARCHITECTURES "89")
+set_target_properties(cm PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+
+target_include_directories(cm PRIVATE cli simulation libraries/thinks/poisson_disk_sampling/)
+
+# Eigen
+target_link_libraries(cm PRIVATE Eigen3::Eigen)
+
+# VTK
+target_link_libraries(cm PRIVATE ${VTK_LIBRARIES})
+
+# HDF5
+if(WIN32)
+    target_link_directories(cm PRIVATE "C:\\libraries\\hdf5-build\\bin\\Release")
+    target_link_libraries(cm PRIVATE hdf5_cpp hdf5 )
+else()
+    target_link_libraries(cm PRIVATE ${HDF5_LIBRARIES})
+    target_include_directories(cm PRIVATE ${HDF5_INCLUDE_DIRS})
+endif()
+
+# spdlog
+if (WIN32)
+    target_link_libraries(cm PRIVATE spdlog)
+    target_include_directories(cm PRIVATE "C:\\libraries\\spdlog\\include")
+    target_link_directories(cm PRIVATE "C:\\libraries\\spdlog-build\\Release")
+else()
+    target_link_libraries(cm PRIVATE spdlog::spdlog)
+endif()
+
+
 vtk_module_autoinit(
-  TARGETS iceMPM_GUI_3D
+  TARGETS iceMPM_GUI_3D cm
   MODULES ${VTK_LIBRARIES}
 )
 

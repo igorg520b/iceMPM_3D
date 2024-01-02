@@ -1,12 +1,11 @@
 {
-"OutputDirectory":"cm_output_50m",
-"InputRawPoints":"/media/s2/Archive1/MPM_2023_results/raw_points/50m.h5",
+"InputRawPoints":"/media/s2/Archive1/MPM_2023_results/raw_points/10m.h5",
 
 "ParticleViewSize":1.0,
 "InitialTimeStep":1.0e-5,
-"GridX":512,
-"GridY":216,
-"GridZ":400,
+"GridX":256,
+"GridY":110,
+"GridZ":220,
 "GridXDimension":3.3,
 
 "YoungsModulus":5.0e8,

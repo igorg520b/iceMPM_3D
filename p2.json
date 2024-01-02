@@ -1,6 +1,5 @@
 {
-"OutputDirectory":"cm_output_10m",
-"InputRawPoints":"/media/s2/Archive1/MPM_2023_results/raw_points/10m.h5",
+"InputRawPoints":"/media/s2/Archive1/MPM_2023_results/raw_points/2m.h5",
 
 "ParticleViewSize":1.0,
 "InitialTimeStep":2.0e-5,

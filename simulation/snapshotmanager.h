@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <array>
 #include <Eigen/Core>
 
 namespace icy {class SnapshotManager; class Model3D;}
@@ -18,6 +19,7 @@ public:
 
     void ReadRawPoints(std::string fileName);
     void GeneratePoints();
+    static std::vector<std::array<float, 3>> GenerateBlock(float dx, float dy, float dz, int n);
 
     void SaveFullSnapshot(std::string fileName);
     void ReadFullSnapshot(std::string fileName);
