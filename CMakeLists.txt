@@ -150,6 +150,9 @@ endif()
 
 add_executable(cm
     cli/main.cpp
+    cli/cli_generate.cpp
+    cli/cli_convert.cpp
+    cli/cli_simulate.cpp
 
     # simulation
     simulation/parameters_sim_3d.h
@@ -170,6 +173,7 @@ add_executable(cm
     simulation/snapshotmanager.h
     simulation/snapshotmanager.cpp
 )
+
 
 set_target_properties(cm PROPERTIES CUDA_ARCHITECTURES "89")
 set_target_properties(cm PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
@@ -200,6 +204,9 @@ else()
     target_link_libraries(cm PRIVATE spdlog::spdlog)
 endif()
 
+# partio
+target_link_libraries(cm PRIVATE /usr/local/lib/libpartio.so.1)
+target_include_directories(cm PRIVATE /home/s2/Projects-Libraries/partio/src/lib/)
 
 vtk_module_autoinit(
   TARGETS iceMPM_GUI_3D cm

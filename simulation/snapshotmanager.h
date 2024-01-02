@@ -27,14 +27,6 @@ public:
     void AllocateMemoryForFrames();
     void SaveFrame();   // export in H5, VTP, VTU, CSV
 
-//    void ReadFirstFrame(std::string directory);
-//    bool ReadNextFrame();  // false if reached the end
-
-private:
-    const std::string dir_vtp = "output_vtp";
-    const std::string dir_indenter = "output_indenter";
-    const std::string dir_points_h5 = "output_h5";
-
     struct VisualPoint
     {
         int id;
@@ -44,6 +36,14 @@ private:
         Eigen::Vector3f pos() {return Eigen::Vector3f(p[0],p[1],p[2]);}
         Eigen::Vector3f vel() {return Eigen::Vector3f(v[0],v[1],v[2]);}
     };
+
+private:
+    const std::string dir_vtp = "output_vtp";
+    const std::string dir_indenter = "output_indenter";
+    const std::string dir_points_h5 = "output_h5";
+
+
+
     std::vector<VisualPoint> current_frame, previous_frame, saved_frame;
     std::vector<int> last_refresh_frame;
 
