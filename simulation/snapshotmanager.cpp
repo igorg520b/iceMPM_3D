@@ -31,7 +31,7 @@
 
 void icy::SnapshotManager::SaveFullSnapshot(std::string fileName)
 {
-    spdlog::info("writing snapshot {}",fileName);
+    spdlog::info("writing full snapshot {}",fileName);
 
     H5::H5File file(fileName, H5F_ACC_TRUNC);
 

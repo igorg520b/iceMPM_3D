@@ -12,77 +12,76 @@
 #include "snapshotmanager.h"
 
 
-void start_simulation_from_json(std::string jsonFile)
-{
-    spdlog::info("starting simulation from JSON configuration file {}", jsonFile);
+void run_simulation(icy::Model3D &model, icy::SnapshotManager &snapshot);
 
+
+void start_simulation_from_json(std::string jsonFile, bool export_vtp)
+{
+
+    spdlog::info("starting simulation from JSON configuration file {}", jsonFile);
     icy::Model3D model;
     icy::SnapshotManager snapshot;
-    std::atomic<bool> stop = false;
-    std::thread snapshot_thread;
-
-    model.prms.Reset();
+    snapshot.export_vtp = export_vtp;
     snapshot.model = &model;
     model.gpu.initialize();
-
-    std::string rawPointsFile = model.prms.ParseFile(qFileName.toStdString());
+    std::string rawPointsFile = model.prms.ParseFile(jsonFile);
     snapshot.ReadRawPoints(rawPointsFile);
-    snapshot.AllocateMemoryForFrames();
+    run_simulation(model, snapshot);
 }
 
 
-void resume_simulation_from_snapshot(std::string snapshotFile)
+void resume_simulation_from_snapshot(std::string snapshotFile, bool export_vtp)
 {
     spdlog::info("resuming simulation from full snapshot file {}", snapshotFile);
-
     icy::Model3D model;
     icy::SnapshotManager snapshot;
-    std::atomic<bool> stop = false;
-    std::thread snapshot_thread;
-
-    model.prms.Reset();
+    snapshot.export_vtp = export_vtp;
     snapshot.model = &model;
     model.gpu.initialize();
-
-
-
+    snapshot.ReadFullSnapshot(snapshotFile);
+    run_simulation(model, snapshot);
 }
 
+void run_simulation(icy::Model3D &model, icy::SnapshotManager &snapshot)
+{
+    constexpr int save_full_snapshot_every = 100;
+    std::string dir = "full_snapshots";
+    std::filesystem::path od(dir);
+    if(!std::filesystem::is_directory(od) || !std::filesystem::exists(od)) std::filesystem::create_directory(od);
 
+    std::thread snapshot_thread;
 
-
-
-
-/*
-    // initialize the model
-    model.Reset();
-    snapshot.model = &model;
+    snapshot.AllocateMemoryForFrames();
+    snapshot.export_force = true;
+    snapshot.export_h5 = true;
 
     // what to do once the data is available
     model.gpu.transfer_completion_callback = [&](){
         if(snapshot_thread.joinable()) snapshot_thread.join();
         snapshot_thread = std::thread([&](){
-            int snapshot_number = model.prms.SimulationStep / model.prms.UpdateEveryNthStep;
-            if(stop) { std::cout << "screenshot aborted\n"; return; }
-            spdlog::info("completion callback {}", snapshot_number);
-            model.FinalizeDataTransfer();
-            std::string outputPath = snapshot_directory + "/" + std::to_string(snapshot_number) + ".h5";
-            snapshot.SaveSnapshot(outputPath, snapshot_number % 100 == 0);
+            int frame = model.prms.AnimationFrameNumber();
+            spdlog::info("data transfer callback {}", frame);
+            snapshot.SaveFrame();
+
+            if(frame%save_full_snapshot_every == 0)
+            {
+                char fileName[20];
+                snprintf(fileName, sizeof(fileName), "s%05d.h5", frame);
+                std::string savePath = dir + "/" + fileName;
+                snapshot.SaveFullSnapshot(savePath);
+            }
+
             model.UnlockCycleMutex();
-            spdlog::info("callback {} done", snapshot_number);
+            spdlog::info("callback {} done", frame);
         });
     };
-
-    // ensure that the folder exists
-    std::filesystem::path outputFolder(snapshot_directory);
-    std::filesystem::create_directory(outputFolder);
 
     std::thread t([&](){
         bool result;
         do
         {
             result = model.Step();
-        } while(!stop && result);
+        } while(result);
     });
 
     t.join();
@@ -90,4 +89,6 @@ void resume_simulation_from_snapshot(std::string snapshotFile)
     snapshot_thread.join();
 
     std::cout << "cm done\n";
-*/
+}
+
+

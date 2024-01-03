@@ -16,8 +16,8 @@
 
 
 void generate_points(float bx, float by, float bz, int n, std::string fileName);
-void start_simulation_from_json(std::string jsonFile);
-void resume_simulation_from_snapshot(std::string snapshotFile);
+void start_simulation_from_json(std::string jsonFile, bool export_vtp);
+void resume_simulation_from_snapshot(std::string snapshotFile, bool export_vtp);
 void convert_to_bgeo_vtp(std::string directory, bool vtp, bool bgeo);
 
 
@@ -70,13 +70,15 @@ int main(int argc, char** argv)
     {
         // start simulation
         std::string input_json = option_parse_result["simulate"].as<std::string>();
-        start_simulation_from_json(input_json);
+        bool export_vtp = option_parse_result.count("vtp");
+        start_simulation_from_json(input_json, export_vtp);
     }
     else if(option_parse_result.count("resume"))
     {
         // resume simulation from full snapshot
         std::string input_snapshot = option_parse_result["resume"].as<std::string>();
-        resume_simulation_from_snapshot(input_snapshot);
+        bool export_vtp = option_parse_result.count("vtp");
+        resume_simulation_from_snapshot(input_snapshot, export_vtp);
     }
 
     return 0;

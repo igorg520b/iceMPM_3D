@@ -327,7 +327,6 @@ void MainWindow::load_parameter_triggered()
     updateGUI();
 
     snapshot.AllocateMemoryForFrames();
-//    if(ui->actionSave_Binary_Data->isChecked()) snapshot.SaveFrame();
 }
 
 

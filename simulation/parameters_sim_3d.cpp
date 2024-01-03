@@ -58,6 +58,7 @@ void icy::SimParams3D::Reset()
 std::string icy::SimParams3D::ParseFile(std::string fileName)
 {
     if(!std::filesystem::exists(fileName)) throw std::runtime_error("configuration file is not found");
+    Reset();
 
     std::ifstream fileStream(fileName);
     std::string strConfigFile;
