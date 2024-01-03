@@ -178,6 +178,9 @@ void export_indenter_f(int frame, std::vector<icy::SnapshotManager::VisualPoint>
 {
     spdlog::info("export indenter {}",frame);
     std::string dir = "output_vtu_indenter";
+    // ensure that directory exists
+    std::filesystem::path od(dir);
+    if(!std::filesystem::is_directory(od) || !std::filesystem::exists(od)) std::filesystem::create_directory(od);
     char fileName[20];
 
     // INDENTER
@@ -246,6 +249,9 @@ void export_vtu_f(int frame, std::vector<icy::SnapshotManager::VisualPoint> &cur
     polydata->GetPointData()->SetActiveScalars("Jp_inv");
 
     std::string dir = "output_vtk";
+    std::filesystem::path od(dir);
+    if(!std::filesystem::is_directory(od) || !std::filesystem::exists(od)) std::filesystem::create_directory(od);
+
     char fileName[20];
     snprintf(fileName, sizeof(fileName), "p_%05d.vtp", frame);
     std::string savePath = dir + "/" + fileName;
@@ -280,6 +286,8 @@ void export_bgeo_f(int frame, std::vector<icy::SnapshotManager::VisualPoint> &cu
 
     // filename
     std::string bgeo_dir = "output_bgeo";
+    std::filesystem::path od(bgeo_dir);
+    if(!std::filesystem::is_directory(od) || !std::filesystem::exists(od)) std::filesystem::create_directory(od);
 
     char fileName[20];
     snprintf(fileName, sizeof(fileName), "%05d.bgeo", frame);

@@ -1,9 +1,33 @@
+#include <iostream>
+#include <functional>
+#include <string>
+#include <filesystem>
+#include <atomic>
+#include <thread>
+
 #include <spdlog/spdlog.h>
+
+#include "model_3d.h"
+#include "parameters_sim_3d.h"
+#include "snapshotmanager.h"
 
 
 void start_simulation_from_json(std::string jsonFile)
 {
     spdlog::info("starting simulation from JSON configuration file {}", jsonFile);
+
+    icy::Model3D model;
+    icy::SnapshotManager snapshot;
+    std::atomic<bool> stop = false;
+    std::thread snapshot_thread;
+
+    model.prms.Reset();
+    snapshot.model = &model;
+    model.gpu.initialize();
+
+    std::string rawPointsFile = model.prms.ParseFile(qFileName.toStdString());
+    snapshot.ReadRawPoints(rawPointsFile);
+    snapshot.AllocateMemoryForFrames();
 }
 
 
@@ -11,14 +35,22 @@ void resume_simulation_from_snapshot(std::string snapshotFile)
 {
     spdlog::info("resuming simulation from full snapshot file {}", snapshotFile);
 
+    icy::Model3D model;
+    icy::SnapshotManager snapshot;
+    std::atomic<bool> stop = false;
+    std::thread snapshot_thread;
+
+    model.prms.Reset();
+    snapshot.model = &model;
+    model.gpu.initialize();
+
+
+
 }
 
 
 
-//icy::Model3D model;
-//icy::SnapshotManager snapshot;
-//std::atomic<bool> stop = false;
-//std::thread snapshot_thread;
+
 
 
 /*

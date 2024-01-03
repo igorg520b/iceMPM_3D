@@ -78,7 +78,7 @@ public:
     real indenter_x, indenter_x_initial, indenter_y;
 
     void Reset();
-    std::pair<std::string,std::string> ParseFile(std::string fileName);
+    std::string ParseFile(std::string fileName);
 
     void ComputeLame();
     void ComputeCamClayParams2();

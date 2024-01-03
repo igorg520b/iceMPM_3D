@@ -55,7 +55,7 @@ void icy::SimParams3D::Reset()
 }
 
 
-std::pair<std::string,std::string> icy::SimParams3D::ParseFile(std::string fileName)
+std::string icy::SimParams3D::ParseFile(std::string fileName)
 {
     if(!std::filesystem::exists(fileName)) throw std::runtime_error("configuration file is not found");
 
@@ -69,11 +69,10 @@ std::pair<std::string,std::string> icy::SimParams3D::ParseFile(std::string fileN
     doc.Parse(strConfigFile.data());
     if(!doc.IsObject()) throw std::runtime_error("configuration file is not JSON");
 
-    std::string outputDirectory = "output";
     std::string inputRawPoints;
 
-    if(doc.HasMember("OutputDirectory")) outputDirectory = doc["OutputDirectory"].GetString();
     if(doc.HasMember("InputRawPoints")) inputRawPoints = doc["InputRawPoints"].GetString();
+    else throw std::runtime_error("raw point file should be provided");
 
     if(doc.HasMember("InitialTimeStep")) InitialTimeStep = doc["InitialTimeStep"].GetDouble();
     if(doc.HasMember("YoungsModulus")) YoungsModulus = doc["YoungsModulus"].GetDouble();
@@ -112,7 +111,7 @@ std::pair<std::string,std::string> icy::SimParams3D::ParseFile(std::string fileN
     std::cout << "cellsize " << cellsize << '\n';
     if(inputRawPoints != "") std::cout << "raw points file " << inputRawPoints << '\n';
 
-    return {outputDirectory, inputRawPoints};
+    return inputRawPoints;
 }
 
 void icy::SimParams3D::ComputeLame()

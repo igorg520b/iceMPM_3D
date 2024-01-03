@@ -319,10 +319,8 @@ void MainWindow::load_parameter_triggered()
     model.Reset();
 
     this->setWindowTitle(qFileName);
-    std::pair<std::string, std::string> p = model.prms.ParseFile(qFileName.toStdString());
-    model.outputDirectory = p.first;
-    if(p.second == "") snapshot.GeneratePoints();
-    else snapshot.ReadRawPoints(p.second);
+    std::string rawPointsFile = model.prms.ParseFile(qFileName.toStdString());
+    snapshot.ReadRawPoints(rawPointsFile);
 
     representation.SynchronizeTopology();
     pbrowser->setActiveObject(params);
