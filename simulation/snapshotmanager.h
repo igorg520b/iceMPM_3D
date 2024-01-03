@@ -18,7 +18,6 @@ public:
     bool export_vtp, export_h5, export_force;
 
     void ReadRawPoints(std::string fileName);
-    void GeneratePoints();
     static std::vector<std::array<float, 3>> GenerateBlock(float dx, float dy, float dz, int n);
 
     void SaveFullSnapshot(std::string fileName);
@@ -42,15 +41,15 @@ private:
     const std::string dir_indenter = "output_indenter";
     const std::string dir_points_h5 = "output_h5";
 
-
-
-    std::vector<VisualPoint> current_frame, previous_frame, saved_frame;
+    std::vector<VisualPoint> current_frame, saved_frame;
     std::vector<int> last_refresh_frame;
 
     void ExportPointsAsH5();
     void ExportPointsAsVTP();
     void ExportIndenterAsVTU();
     void WriteIndenterForceCSV();
+
+    void PopulateVisualPoint(VisualPoint &vp, int idx);
 };
 
 #endif // SNAPSHOTWRITER_H

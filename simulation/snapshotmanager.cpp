@@ -65,6 +65,7 @@ void icy::SnapshotManager::SaveFullSnapshot(std::string fileName)
 void icy::SnapshotManager::ReadFullSnapshot(std::string fileName)
 {
     if(!std::filesystem::exists(fileName)) return;
+    spdlog::info("SnapshotManager: reading full snapshot {}", fileName);
 
     H5::H5File file(fileName, H5F_ACC_RDONLY);
 
@@ -97,17 +98,6 @@ void icy::SnapshotManager::ReadFullSnapshot(std::string fileName)
     model->Prepare();
 }
 
-
-void icy::SnapshotManager::AllocateMemoryForFrames()
-{
-    int n = model->prms.nPts;
-    current_frame.resize(n);
-    previous_frame.resize(n);
-    saved_frame.reserve(n);
-
-    last_refresh_frame.resize(n);
-    previous_frame_exists = false;
-}
 
 void icy::SnapshotManager::SaveFrame()
 {
@@ -157,7 +147,6 @@ void icy::SnapshotManager::ReadRawPoints(std::string fileName)
     model->prms.ParticleVolume = model->prms.bvol()/nPoints;
     model->prms.ParticleMass = model->prms.ParticleVolume * model->prms.Density;
 
-
     for(int k=0; k<nPoints; k++)
     {
         Point3D p;
@@ -176,47 +165,28 @@ void icy::SnapshotManager::ReadRawPoints(std::string fileName)
     model->Prepare();
 }
 
-void icy::SnapshotManager::GeneratePoints()
+
+
+void icy::SnapshotManager::PopulateVisualPoint(VisualPoint &vp, int idx)
 {
-    spdlog::info("icy::SnapshotManager::GeneratePoints()");
-    const real &bx = model->prms.IceBlockDimX;
-    const real &by = model->prms.IceBlockDimY;
-    const real &bz = model->prms.IceBlockDimZ;
-    const real bvol = model->prms.bvol();
-    const real &h = model->prms.cellsize;
-    constexpr real magic_constant = 0.5844;
-
-    const real z_center = model->prms.GridZ*h/2;
-    const real block_z_min = std::max(z_center - bz/2, 0.0);
-    const real block_z_max = std::min(z_center + bz/2, model->prms.GridZ*h);
-    spdlog::info("block_z_range [{}, {}]", block_z_min, block_z_max);
-
-    const real kRadius = cbrt(magic_constant*bvol/model->prms.PointsWanted);
-    const std::array<real, 3>kXMin{5.0*h, 2.0*h, block_z_min};
-    const std::array<real, 3>kXMax{5.0*h+bx, 2.0*h+by, block_z_max};
-
-    spdlog::info("starting thinks::PoissonDiskSampling");
-    std::vector<std::array<real, 3>> prresult = thinks::PoissonDiskSampling(kRadius, kXMin, kXMax);
-    int n = prresult.size();
-    model->prms.nPts = n;
-    spdlog::info("finished thinks::PoissonDiskSampling; {} ", n);
-    model->gpu.cuda_allocate_arrays(model->prms.GridTotal, n);
-
-    model->prms.ParticleVolume = bvol/n;
-    model->prms.ParticleMass = model->prms.ParticleVolume * model->prms.Density;
-    for(int k = 0; k<n; k++)
+    vp.id = idx;
+    vp.Jp_inv = (float)icy::Point3D::getJp_inv(model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, idx);
+    Vector3r pos = icy::Point3D::getPos(model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, idx);
+    Vector3r vel = icy::Point3D::getVelocity(model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, idx);
+    for(int j=0;j<3;j++)
     {
-        Point3D p;
-        p.Reset();
-        for(int i=0;i<3;i++) p.pos[i] = prresult[k][i];
-        p.pos_initial = p.pos;
-        p.TransferToBuffer(model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, k);
+        vp.p[j] = (float)pos[j];
+        vp.v[j] = (float)vel[j];
     }
-    spdlog::info("icy::SnapshotManager::GeneratePoints() done");
+}
 
-    model->gpu.transfer_ponts_to_device();
-    model->Reset();
-    model->Prepare();
+void icy::SnapshotManager::AllocateMemoryForFrames()
+{
+    int n = model->prms.nPts;
+    current_frame.resize(n);
+    saved_frame.reserve(n);
+    last_refresh_frame.resize(n);
+    previous_frame_exists = false;
 }
 
 
@@ -224,32 +194,16 @@ void icy::SnapshotManager::ExportPointsAsH5()
 {
     spdlog::info("icy::SnapshotManager::ExportPointsAsH5()");
 
-    // populate current_frame (pull and convert to float: idx, pos, vel, Jp_inv)
-    for(int i=0;i<model->prms.nPts;i++)
-    {
-        VisualPoint &vp = current_frame[i];
-        vp.id = i;
-        vp.Jp_inv = (float)icy::Point3D::getJp_inv(model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, i);
-        Vector3r pos = icy::Point3D::getPos(model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, i);
-        Vector3r vel = icy::Point3D::getVelocity(model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, i);
-        for(int j=0;j<3;j++)
-        {
-            vp.p[j] = (float) pos[j];
-            vp.v[j] = (float) vel[j];
-        }
-    }
-
     // populate saved_frame
     const int current_frame_number = model->prms.AnimationFrameNumber();
 
     if(!previous_frame_exists)
     {
+        for(int i=0;i<model->prms.nPts;i++) PopulateVisualPoint(current_frame[i], i);
         // saved_frame is a full copy of the current_frame
         saved_frame = current_frame;
         std::fill(last_refresh_frame.begin(), last_refresh_frame.end(), current_frame_number);
         previous_frame_exists = true;
-        previous_frame = current_frame;
-        spdlog::info("saving full frame");
     }
     else
     {
@@ -259,8 +213,9 @@ void icy::SnapshotManager::ExportPointsAsH5()
         saved_frame.clear();
         for(int i=0;i<model->prms.nPts;i++)
         {
-            VisualPoint &p_c = current_frame[i];
-            VisualPoint &p_p = previous_frame[i];
+            VisualPoint p_c;
+            PopulateVisualPoint(p_c, i);
+            VisualPoint &p_p = current_frame[i];
             int previous_update = last_refresh_frame[i];
             int elapsed_frames = current_frame_number - previous_update;
             Eigen::Vector3f predicted_position = p_p.pos() + p_p.vel()*(dt*elapsed_frames);
@@ -273,8 +228,8 @@ void icy::SnapshotManager::ExportPointsAsH5()
                 saved_frame.push_back(p_c);
             }
         }
-        spdlog::info("saving difference; saved_frame.size() = {}",saved_frame.size());
     }
+    spdlog::info("saved_frame size is {}",saved_frame.size());
 
     char fileName[20];
     snprintf(fileName, sizeof(fileName), "v%05d.h5", current_frame_number);
