@@ -16,6 +16,7 @@
 #include <vtkTransform.h>
 #include <vtkTransformFilter.h>
 #include <vtkAppendFilter.h>
+#include <vtkStructuredGrid.h>
 
 #include "parameters_sim_3d.h"
 #include "snapshotmanager.h"
@@ -24,7 +25,7 @@
 void export_bgeo_f(int frame, std::vector<icy::SnapshotManager::VisualPoint> &current_frame);
 void export_vtu_f(int frame, std::vector<icy::SnapshotManager::VisualPoint> &current_frame, icy::SimParams3D &prms);
 void export_indenter_f(int frame, std::vector<icy::SnapshotManager::VisualPoint> &current_frame,
-                       icy::SimParams3D &prms, std::vector<Vector3r> &indenter_force_history);
+                       icy::SimParams3D &prms, std::vector<double> &indenter_force_buffer);
 
 
 void convert_to_bgeo_vtp(std::string directory, bool export_vtp, bool export_bgeo)
@@ -36,82 +37,19 @@ void convert_to_bgeo_vtp(std::string directory, bool export_vtp, bool export_bge
     std::vector<Vector3r> indenter_force_history;
     icy::SimParams3D prms;
 
-    // load first frame
+
+    int frame = 1;
+    std::string filePath;
     char fileName[20];
-    int current_frame_number = 1;
-    snprintf(fileName, sizeof(fileName), "v%05d.h5", current_frame_number);
-    std::string filePath = directory + "/" + fileName;
-    spdlog::info("reading visual frame {} to file {}", current_frame_number, filePath);
 
-    if(!std::filesystem::exists(filePath))
+    snprintf(fileName, sizeof(fileName), "v%05d.h5", frame);
+    filePath = directory + "/" + fileName;
+
+    do
     {
-        spdlog::critical("file {} does not exist",filePath);
-        return;
-    }
-
-    H5::H5File file(filePath, H5F_ACC_RDONLY);
-
-    spdlog::info("reading Params");
-    // read params
-    H5::DataSet dataset_params = file.openDataSet("Params");
-    hsize_t dims_params = 0;
-    dataset_params.getSpace().getSimpleExtentDims(&dims_params, NULL);
-    if(dims_params != sizeof(icy::SimParams3D)) throw std::runtime_error("SimParams3D size mismatch");
-    dataset_params.read(&prms, H5::PredType::NATIVE_B8);
-
-
-/*
-    H5::DataSpace dataspace_indneter_force(1, &dims_indenter_force);
-    H5::DataSet dataset_indneter_force = file.createDataSet("Indenter_Force", H5::PredType::NATIVE_DOUBLE, dataspace_indneter_force, proplist2);
-    dataset_indneter_force.write(model->gpu.host_side_indenter_force_accumulator, H5::PredType::NATIVE_DOUBLE);
-
-*/
-
-
-    // read indenter data
-    indenter_force_buffer.resize(prms.indenter_array_size);
-    spdlog::info("reading indenter data");
-    H5::DataSet dataset_indenter = file.openDataSet("Indenter_Force");
-    dataset_indenter.read(indenter_force_buffer.data(), H5::PredType::NATIVE_DOUBLE);
-
-
-    Vector3r indenter_force_elem;
-    indenter_force_elem.setZero();
-    for(int i=0;i<prms.indenter_array_size;i++) indenter_force_elem[i%3] += indenter_force_buffer[i];
-    indenter_force_history.push_back(indenter_force_elem);
-
-    // read points
-    spdlog::info("reading Points");
-    H5::DataSet dataset_points = file.openDataSet("Points");
-    hsize_t dims_points = 0;
-    dataset_points.getSpace().getSimpleExtentDims(&dims_points, NULL);
-    int nPoints = dims_points/sizeof(icy::SnapshotManager::VisualPoint);
-    current_frame.resize(nPoints);
-    dataset_points.read(current_frame.data(), H5::PredType::NATIVE_B8);
-    file.close();
-
-    // CONVERT FORMATS AS NEEDED
-    if(export_bgeo) export_bgeo_f(current_frame_number, current_frame);
-    if(export_vtp) {
-        export_vtu_f(current_frame_number, current_frame, prms);
-        export_indenter_f(current_frame_number, current_frame, prms, indenter_force_history);
-    }
-
-    spdlog::info("icy::SnapshotManager::ReadFirstFrame done");
-
-    // load subsequent frames
-    int next_frame = 1;
-    while(true)
-    {
-        next_frame++;
-        char fileName[20];
-        snprintf(fileName, sizeof(fileName), "v%05d.h5", next_frame);
-        std::string filePath = directory + "/" + fileName;
-        spdlog::info("reading file {}", filePath);
-        if(!std::filesystem::exists(filePath)) break;
+        spdlog::info("reading visual frame {}", frame);
 
         H5::H5File file(filePath, H5F_ACC_RDONLY);
-
         H5::DataSet dataset_params = file.openDataSet("Params");
         hsize_t dims_params = 0;
         dataset_params.getSpace().getSimpleExtentDims(&dims_params, NULL);
@@ -119,10 +57,12 @@ void convert_to_bgeo_vtp(std::string directory, bool export_vtp, bool export_bge
         dataset_params.read(&prms, H5::PredType::NATIVE_B8);
 
         // read indenter data
+        indenter_force_buffer.resize(prms.indenter_array_size);
         spdlog::info("reading indenter data");
         H5::DataSet dataset_indenter = file.openDataSet("Indenter_Force");
         dataset_indenter.read(indenter_force_buffer.data(), H5::PredType::NATIVE_DOUBLE);
 
+        Vector3r indenter_force_elem;
         indenter_force_elem.setZero();
         for(int i=0;i<prms.indenter_array_size;i++) indenter_force_elem[i%3] += indenter_force_buffer[i];
         indenter_force_history.push_back(indenter_force_elem);
@@ -135,31 +75,43 @@ void convert_to_bgeo_vtp(std::string directory, bool export_vtp, bool export_bge
         dataset_points.read(saved_frame.data(), H5::PredType::NATIVE_B8);
         file.close();
 
-        // advance "current_frame" one step forward
-        for(int i=0; i<prms.nPts;i++)
+
+        if(current_frame.size()==0)
         {
-            icy::SnapshotManager::VisualPoint &vp = current_frame[i];
-            Eigen::Vector3f updated_pos = vp.pos() + vp.vel()*prms.InitialTimeStep;
-            for(int j=0;j<3;j++) vp.p[j] = updated_pos[j];
+            // this is the first frame
+            current_frame = saved_frame;
+        }
+        else
+        {
+            // advance "current_frame" one step forward
+            for(int i=0; i<prms.nPts;i++)
+            {
+                icy::SnapshotManager::VisualPoint &vp = current_frame[i];
+                Eigen::Vector3f updated_pos = vp.pos() + vp.vel()*prms.InitialTimeStep;
+                for(int j=0;j<3;j++) vp.p[j] = updated_pos[j];
+            }
+
+            // update select points
+            for(int i=0; i<saved_frame.size(); i++)
+            {
+                icy::SnapshotManager::VisualPoint &vp = saved_frame[i];
+                current_frame[vp.id] = vp;
+            }
         }
 
-        // update select points
-        for(int i=0; i<saved_frame.size(); i++)
-        {
-            icy::SnapshotManager::VisualPoint &vp = saved_frame[i];
-            current_frame[vp.id] = vp;
-        }
-
-        if(export_bgeo) export_bgeo_f(next_frame, current_frame);
+        if(export_bgeo) export_bgeo_f(frame, current_frame);
         if(export_vtp)
         {
-            export_vtu_f(next_frame, current_frame, prms);
-            export_indenter_f(next_frame, current_frame, prms, indenter_force_history);
+            export_vtu_f(frame, current_frame, prms);
+            export_indenter_f(frame, current_frame, prms, indenter_force_buffer);
         }
 
-        spdlog::info("read next frame {} done", next_frame);
-    }
+        frame++;
+        snprintf(fileName, sizeof(fileName), "v%05d.h5", frame);
+        filePath = directory + "/" + fileName;
+    } while(std::filesystem::exists(filePath));
 
+    // write CSV
     spdlog::info("saving indenter_force");
     std::ofstream ofs("indenter_force.csv", std::ofstream::out | std::ofstream::trunc);
     ofs << "t,F_total,fx,fy\n";
@@ -170,11 +122,12 @@ void convert_to_bgeo_vtp(std::string directory, bool export_vtp, bool export_bge
         ofs << t << ',' << v.norm() << ',' << v[0] << ',' << v[1] << '\n';
     }
     ofs.close();
+
 }
 
 
 void export_indenter_f(int frame, std::vector<icy::SnapshotManager::VisualPoint> &current_frame, icy::SimParams3D &prms,
-                       std::vector<Vector3r> &indenter_force_history)
+                       std::vector<double> &indenter_force_buffer)
 {
     spdlog::info("export indenter {}",frame);
     std::string dir = "output_vtu_indenter";
@@ -183,7 +136,7 @@ void export_indenter_f(int frame, std::vector<icy::SnapshotManager::VisualPoint>
     if(!std::filesystem::is_directory(od) || !std::filesystem::exists(od)) std::filesystem::create_directory(od);
     char fileName[20];
 
-    // INDENTER
+    // INDENTER / cylinder shape
     snprintf(fileName, sizeof(fileName), "i_%05d.vtu", frame);
     std::string savePath = dir + "/" + fileName;
     spdlog::info("writing vtk file {}", savePath);
@@ -221,6 +174,52 @@ void export_indenter_f(int frame, std::vector<icy::SnapshotManager::VisualPoint>
     writer2->SetFileName(savePath.c_str());
     writer2->SetInputData(unstructuredGrid);
     writer2->Write();
+
+
+    // TEKSCAN-like grid
+    spdlog::info("export tekscan-like grid {}",frame);
+    dir = "output_tekscan";
+    // ensure that directory exists
+    std::filesystem::path od2(dir);
+    if(!std::filesystem::is_directory(od2) || !std::filesystem::exists(od2)) std::filesystem::create_directory(od2);
+    snprintf(fileName, sizeof(fileName), "t_%05d.vtu", frame);
+    savePath = dir + "/" + fileName;
+    spdlog::info("writing vtu file {}", savePath);
+
+
+    vtkNew<vtkPoints> grid_points;
+    vtkNew<vtkStructuredGrid> structuredGrid;
+
+    int nx = prms.GridZ+1;
+    int ny = prms.n_indenter_subdivisions_angular+1;
+    int n = nx*ny;
+    structuredGrid->SetDimensions(nx, ny, 1);
+    grid_points->SetNumberOfPoints(n);
+    double h = prms.cellsize;
+    double hsq = h*h;
+    for(int idx_y=0; idx_y<ny; idx_y++)
+        for(int idx_x=0; idx_x<nx; idx_x++)
+        {
+            double pt_pos[3] {idx_x*h, idx_y*h, 0};
+            int idx = idx_x+idx_y*nx;
+            grid_points->SetPoint(idx, pt_pos);
+
+        }
+    structuredGrid->SetPoints(grid_points);
+
+    vtkNew<vtkFloatArray> values;
+    values->SetName("Pressure");
+    values->SetNumberOfValues(prms.GridZ*prms.n_indenter_subdivisions_angular);
+    for(int idx_y=0; idx_y<prms.n_indenter_subdivisions_angular; idx_y++)
+        for(int idx_x=0; idx_x<prms.GridZ; idx_x++)
+        {
+            int idx = idx_x + prms.GridZ*idx_y;
+            Vector3r f;
+            for(int k=0;k<3;k++) f[k] = indenter_force_buffer[3*idx+k];
+            values->SetValue(idx, f.norm()/hsq);
+        }
+
+
 }
 
 

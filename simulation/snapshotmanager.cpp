@@ -388,7 +388,6 @@ void icy::SnapshotManager::WriteIndenterForceCSV()
     ofs.close();
 }
 
-
 std::vector<std::array<float, 3>> icy::SnapshotManager::GenerateBlock(float bx, float by, float bz, int n)
 {
     constexpr float magic_constant = 0.58;

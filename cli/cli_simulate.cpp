@@ -44,7 +44,7 @@ void resume_simulation_from_snapshot(std::string snapshotFile, bool export_vtp)
 
 void run_simulation(icy::Model3D &model, icy::SnapshotManager &snapshot)
 {
-    constexpr int save_full_snapshot_every = 100;
+    constexpr int save_full_snapshot_every = 50;
     std::string dir = "full_snapshots";
     std::filesystem::path od(dir);
     if(!std::filesystem::is_directory(od) || !std::filesystem::exists(od)) std::filesystem::create_directory(od);
