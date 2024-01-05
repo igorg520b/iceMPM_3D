@@ -258,9 +258,6 @@ __forceinline__ __device__ void Wolper_Drucker_Prager(icy::Point3D &p)
     if(p_trial < 0 || p.Jp_inv < 1)
     {
         p.q = 1;
-//        if(p_trial < 1)  p.q = 1;
-//        else if(p.Jp_inv < 1) p.q = 2;
-
         // tear in tension or compress until original state
         real p_new = 0;
         real Je_new = sqrt(-2.*p_new/kappa + 1.);
