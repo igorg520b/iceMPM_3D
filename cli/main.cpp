@@ -2,8 +2,6 @@
 #include <functional>
 #include <string>
 #include <filesystem>
-#include <atomic>
-#include <thread>
 #include <chrono>
 
 #include <cxxopts.hpp>

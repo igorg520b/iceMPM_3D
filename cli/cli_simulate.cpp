@@ -50,6 +50,8 @@ void run_simulation(icy::Model3D &model, icy::SnapshotManager &snapshot)
     if(!std::filesystem::is_directory(od) || !std::filesystem::exists(od)) std::filesystem::create_directory(od);
 
     std::thread snapshot_thread;
+    std::atomic<bool> request_full_snapshot = false;
+    std::atomic<bool> request_terminate = false;
 
     snapshot.AllocateMemoryForFrames();
     snapshot.export_force = true;
@@ -63,8 +65,9 @@ void run_simulation(icy::Model3D &model, icy::SnapshotManager &snapshot)
             spdlog::info("data transfer callback {}", frame);
             snapshot.SaveFrame();
 
-            if(frame%save_full_snapshot_every == 0)
+            if(frame%save_full_snapshot_every == 0 || request_full_snapshot)
             {
+                request_full_snapshot = false;
                 char fileName[20];
                 snprintf(fileName, sizeof(fileName), "s%05d.h5", frame);
                 std::string savePath = dir + "/" + fileName;
@@ -76,15 +79,35 @@ void run_simulation(icy::Model3D &model, icy::SnapshotManager &snapshot)
         });
     };
 
-    std::thread t([&](){
+    std::thread simulation_thread([&](){
         bool result;
         do
         {
             result = model.Step();
-        } while(result);
+            std::cout << "(s)save, (q)save and quit\n";
+        } while(result && !request_terminate);
+        spdlog::critical("simulation ended");
+        request_terminate = true;
     });
 
-    t.join();
+    do
+    {
+        std::string user_input;
+        std::cin >> user_input;
+
+        if(user_input[0]=='s')
+        {
+            request_full_snapshot = true;
+            spdlog::critical("requested to save a full snapshot");
+        }
+        else if(user_input[0]=='q'){
+            request_terminate = true;
+            request_full_snapshot = true;
+            spdlog::critical("requested to save the snapshot and terminate");
+        }
+    } while(!request_terminate);
+
+    simulation_thread.join();
     model.gpu.synchronize();
     snapshot_thread.join();
 
