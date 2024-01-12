@@ -32,6 +32,7 @@ void icy::SimParams3D::Reset()
     IceBlockDimX = 2.5;
     IceBlockDimY = 1.0;
     IceBlockDimZ = 1.5;
+    BlockOffsetX = 20;
 
     SimulationStep = 0;
     SimulationTime = 0;
@@ -41,6 +42,7 @@ void icy::SimParams3D::Reset()
     IceShearStrength = 4.5e6;
 
     DP_tan_phi = std::tan(65*pi/180.);
+    DP_threshold_p = 1000;
 
     tpb_P2G = 256;
     tpb_Upd = 512;
@@ -96,12 +98,14 @@ std::string icy::SimParams3D::ParseFile(std::string fileName)
     if(doc.HasMember("IceBlockDimX")) IceBlockDimX = doc["IceBlockDimX"].GetDouble();
     if(doc.HasMember("IceBlockDimY")) IceBlockDimY = doc["IceBlockDimY"].GetDouble();
     if(doc.HasMember("IceBlockDimZ")) IceBlockDimZ = doc["IceBlockDimZ"].GetDouble();
+    if(doc.HasMember("BlockOffsetX")) BlockOffsetX = doc["BlockOffsetX"].GetInt();
 
     if(doc.HasMember("IceCompressiveStrength")) IceCompressiveStrength = doc["IceCompressiveStrength"].GetDouble();
     if(doc.HasMember("IceTensileStrength")) IceTensileStrength = doc["IceTensileStrength"].GetDouble();
     if(doc.HasMember("IceShearStrength")) IceShearStrength = doc["IceShearStrength"].GetDouble();
 
     if(doc.HasMember("DP_phi")) DP_tan_phi = std::tan(doc["DP_phi"].GetDouble()*pi/180);
+    if(doc.HasMember("DP_threshold_p")) DP_threshold_p = doc["DP_threshold_p"].GetDouble();
 
     ComputeCamClayParams2();
     ComputeLame();

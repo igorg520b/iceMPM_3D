@@ -243,6 +243,7 @@ __forceinline__ __device__ void Wolper_Drucker_Prager(icy::Point3D &p)
     const real &kappa = gprms.kappa;
     const real &dt = gprms.InitialTimeStep;
     const real &tan_phi = gprms.DP_tan_phi;
+    const real &DP_threshold_p = gprms.DP_threshold_p;
     constexpr real d = 3;
 
     Matrix3r FeTr = (Matrix3r::Identity() + dt*gradV) * p.Fe;
@@ -255,11 +256,11 @@ __forceinline__ __device__ void Wolper_Drucker_Prager(icy::Point3D &p)
     Matrix3r s_hat_tr = mu * rcbrt(Je_tr_sq) * dev(SigmaSquared);  //  pow(Je_tr, -2./d)
     real p_trial = -(kappa/2.)*(Je_tr_sq - 1);
 
-    if(p_trial < 0 || p.Jp_inv < 1)
+    if(p_trial < -DP_threshold_p || p.Jp_inv < 1)
     {
         p.q = 1;
         // tear in tension or compress until original state
-        real p_new = 0;
+        real p_new = -DP_threshold_p;
         real Je_new = sqrt(-2.*p_new/kappa + 1.);
         Matrix3r Sigma_new = Matrix3r::Identity() * cbrt(Je_new); //  Matrix3r::Identity()*pow(Je_new, 1./(real)d);
         p.Fe = U*Sigma_new*V.transpose();
@@ -269,7 +270,7 @@ __forceinline__ __device__ void Wolper_Drucker_Prager(icy::Point3D &p)
     {
         constexpr real coeff1 = 1.2247448713915890; // sqrt((6-d)/2.);
         real q_tr = coeff1*s_hat_tr.norm();
-        real q_n_1 = p_trial*tan_phi;
+        real q_n_1 = (p_trial+DP_threshold_p)*tan_phi;
         q_n_1 = min(gprms.IceShearStrength, q_n_1);
 
         if(q_tr < q_n_1)
@@ -459,25 +460,31 @@ __global__ void kernel_update_nodes(real indenter_x, real indenter_y)
 
     // attached bottom layer and walls
     if(idx_x <= 3 && velocity[0]<0) velocity[0] = 0;
-    else if(idx_x >= gridX-5 && velocity[0]>0) velocity[0] = 0;
+    else if(idx_x >= gridX-4 && velocity[0]>0) velocity[0] = 0;
 
     if(idx_y <= 3) velocity.setZero();
     else if(idx_y >= gridY-4 && velocity[1]>0) velocity[1] = 0;
 
     if(idx_z <= 3 && velocity[2]<0) velocity[2] = 0;
-    else if(idx_z >= gridZ-5 && velocity[2]>0) velocity[2] = 0;
+    else if(idx_z >= gridZ-4 && velocity[2]>0) velocity[2] = 0;
 
     // hold lower half of the block at boudaries
-    int blocksGridX = gprms.IceBlockDimX*gprms.cellsize_inv+5-2;
-    int blocksGridY = gprms.IceBlockDimY/2*gprms.cellsize_inv+2;
-    int blocksGridZ = gprms.IceBlockDimZ*gprms.cellsize_inv+5-2;
-/*
-    if(idx_y < blocksGridY &&
-        ((idx_x <= 7 && idx_x > 4)||
-        (idx_z <= 7 && idx_z > 4)||
-        (idx_x >= blocksGridX && idx_x <= blocksGridX + 2)||
-        (idx_z >= blocksGridZ && idx_z <= blocksGridZ + 2))) velocity.setZero();
-*/
+    real &hinv = gprms.cellsize_inv;
+    int blocksXmin = gprms.BlockOffsetX+5;
+    int blocksXmax = gprms.BlockOffsetX+5 + (int)(gprms.IceBlockDimX*hinv);
+
+    int blocksYmid = 2 + (int)(gprms.IceBlockDimY*hinv/2);
+
+    int blocksZmin = gprms.GridZ/2 - (int)(gprms.IceBlockDimZ*gprms.cellsize_inv/2);
+    int blocksZmax = gprms.GridZ/2 + (int)(gprms.IceBlockDimZ*gprms.cellsize_inv/2);
+
+    if(idx_y <= blocksYmid && (
+                                (idx_x >= (blocksXmin-1) && idx_x < (blocksXmin+2)) ||
+                                (idx_x > (blocksXmax-2) && idx_x <= (blocksXmax+1)) ||
+                                (idx_z >= (blocksZmin-1) && idx_z < (blocksZmin+2)) ||
+                                (idx_z > (blocksZmax-2) && idx_z <= (blocksZmax+1))
+                                )) velocity.setZero();
+
     // write the updated grid velocity back to memory
     for(int i=0;i<3;i++) gprms.grid_array[(1+i)*pitch + idx] = velocity[i];
 }
@@ -542,8 +549,6 @@ __global__ void kernel_g2p()
     // Advection
     p.pos += dt * p.velocity;
 
-//    Matrix3r FeTr = (Matrix3r::Identity() + gprms.InitialTimeStep*p.Bp) * p.Fe;
-//    p.Fe = FeTr;
     if(p.q == 0) CheckIfPointIsInsideFailureSurface(p);
     else Wolper_Drucker_Prager(p);
 

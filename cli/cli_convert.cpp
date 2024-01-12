@@ -21,26 +21,33 @@
 #include <vtkXMLStructuredGridWriter.h>
 #include <vtkCellData.h>
 
-#include "parameters_sim_3d.h"
 #include "snapshotmanager.h"
+#include "parameters_sim_3d.h"
+
+
+void export_indenter_f(int frame, std::vector<icy::SnapshotManager::VisualPoint> &current_frame,
+                       std::vector<double> &indenter_force_buffer,
+                       double indenter_x, double indenter_y, int GridZ, double cellsize, double IndDiameter, double IceBlockDimZ,
+                        int n_indenter_subdivisions_angular);
 
 
 void export_bgeo_f(int frame, std::vector<icy::SnapshotManager::VisualPoint> &current_frame);
-void export_indenter_f(int frame, std::vector<icy::SnapshotManager::VisualPoint> &current_frame,
-                       icy::SimParams3D &prms, std::vector<double> &indenter_force_buffer);
-void export_vtu_f(int frame, std::vector<icy::SnapshotManager::VisualPoint> &current_frame, icy::SimParams3D &prms,
-                  std::vector<icy::SnapshotManager::VisualPoint> &initial_frame);
+
+void export_vtu_f(int frame, std::vector<icy::SnapshotManager::VisualPoint> &current_frame);
 
 
 void convert_to_bgeo_vtp(std::string directory, bool export_vtp, bool export_bgeo, bool export_indenter)
 {
     spdlog::info("convert to vtp {}, to bgeo {}, directory {}", export_vtp, export_bgeo, directory);
 
-    std::vector<icy::SnapshotManager::VisualPoint> current_frame, saved_frame, initial_frame;
+    std::vector<icy::SnapshotManager::VisualPoint> current_frame, saved_frame;
     std::vector<double> indenter_force_buffer;
     std::vector<Vector3r> indenter_force_history;
-    icy::SimParams3D prms;
+//    icy::SimParams3D prms;
 
+    int n_indenter_subdivisions_angular, GridZ, nPts, UpdateEveryNthStep, indenter_array_size;
+    double indenter_x, indenter_y;
+    double cellsize, IceBlockDimZ, IndDiameter, InitialTimeStep;
 
     int frame = 1;
     std::string filePath;
@@ -54,21 +61,55 @@ void convert_to_bgeo_vtp(std::string directory, bool export_vtp, bool export_bge
         spdlog::info("reading visual frame {}", frame);
 
         H5::H5File file(filePath, H5F_ACC_RDONLY);
-        H5::DataSet dataset_params = file.openDataSet("Params");
-        hsize_t dims_params = 0;
-        dataset_params.getSpace().getSimpleExtentDims(&dims_params, NULL);
-        if(dims_params != sizeof(icy::SimParams3D)) throw std::runtime_error("SimParams3D size mismatch");
-        dataset_params.read(&prms, H5::PredType::NATIVE_B8);
+
+//        H5::DataSet dataset_params = file.openDataSet("Params");
+//        hsize_t dims_params = 0;
+//        dataset_params.getSpace().getSimpleExtentDims(&dims_params, NULL);
+//        if(dims_params != sizeof(icy::SimParams3D)) throw std::runtime_error("SimParams3D size mismatch");
+//        dataset_params.read(&prms, H5::PredType::NATIVE_B8);
 
         // read indenter data
-        indenter_force_buffer.resize(prms.indenter_array_size);
         spdlog::info("reading indenter data");
         H5::DataSet dataset_indenter = file.openDataSet("Indenter_Force");
+
+        // read some parameters that are saved as attributes on the indenter dataset
+        H5::Attribute att_indenter_x = dataset_indenter.openAttribute("indenter_x");
+        H5::Attribute att_indenter_y = dataset_indenter.openAttribute("indenter_y");
+        att_indenter_x.read(H5::PredType::NATIVE_INT, &indenter_x);
+        att_indenter_y.read(H5::PredType::NATIVE_INT, &indenter_y);
+
+        if(current_frame.size()==0)
+        {
+            // some attributes are available only in the first frame
+            H5::Attribute att_GridZ = dataset_indenter.openAttribute("GridZ");
+            H5::Attribute att_nPts = dataset_indenter.openAttribute("nPts");
+            H5::Attribute att_UpdateEveryNthStep = dataset_indenter.openAttribute("UpdateEveryNthStep");
+            H5::Attribute att_n_indenter_subdivisions_angular = dataset_indenter.openAttribute("n_indenter_subdivisions_angular");
+
+            att_GridZ.read(H5::PredType::NATIVE_INT, &GridZ);
+            att_nPts.read(H5::PredType::NATIVE_INT, &nPts);
+            att_UpdateEveryNthStep.read(H5::PredType::NATIVE_INT, &UpdateEveryNthStep);
+            att_n_indenter_subdivisions_angular.read(H5::PredType::NATIVE_INT, &n_indenter_subdivisions_angular);
+
+            H5::Attribute att_cellsize = dataset_indenter.openAttribute("cellsize");
+            H5::Attribute att_IceBlockDimZ = dataset_indenter.openAttribute("IceBlockDimZ");
+            H5::Attribute att_IndDiameter = dataset_indenter.openAttribute("IndDiameter");
+            H5::Attribute att_InitialTimeStep = dataset_indenter.openAttribute("InitialTimeStep");
+
+            att_cellsize.read(H5::PredType::NATIVE_DOUBLE, &GridZ);
+            att_IceBlockDimZ.read(H5::PredType::NATIVE_DOUBLE, &IceBlockDimZ);
+            att_IndDiameter.read(H5::PredType::NATIVE_DOUBLE, &IndDiameter);
+            att_InitialTimeStep.read(H5::PredType::NATIVE_DOUBLE, &GridZ);
+
+            indenter_array_size = 3*GridZ*n_indenter_subdivisions_angular;
+        }
+
+        indenter_force_buffer.resize(indenter_array_size);
         dataset_indenter.read(indenter_force_buffer.data(), H5::PredType::NATIVE_DOUBLE);
 
         Vector3r indenter_force_elem;
         indenter_force_elem.setZero();
-        for(int i=0;i<prms.indenter_array_size;i++) indenter_force_elem[i%3] += indenter_force_buffer[i];
+        for(int i=0; i<indenter_array_size; i++) indenter_force_elem[i%3] += indenter_force_buffer[i];
         indenter_force_history.push_back(indenter_force_elem);
 
         if(export_bgeo || export_vtp)
@@ -83,17 +124,17 @@ void convert_to_bgeo_vtp(std::string directory, bool export_vtp, bool export_bge
             if(current_frame.size()==0)
             {
                 // this is the first frame
-                initial_frame = current_frame = saved_frame;
+                current_frame = saved_frame;
+                if(nPoints != nPts) throw std::runtime_error("nPoints size mismatch when loading H5 frame file");
             }
             else
             {
                 // advance "current_frame" one step forward
-                for(int i=0; i<prms.nPts;i++)
+                for(int i=0; i<nPts;i++)
                 {
                     icy::SnapshotManager::VisualPoint &vp = current_frame[i];
                     Eigen::Map<Eigen::Vector3f> updated_pos(vp.p);
-                    updated_pos = vp.pos() + vp.vel()*prms.InitialTimeStep;
-                    //for(int j=0;j<3;j++) vp.p[j] = updated_pos[j];
+                    updated_pos = vp.pos() + vp.vel()*InitialTimeStep;
                 }
 
                 // update select points
@@ -108,8 +149,12 @@ void convert_to_bgeo_vtp(std::string directory, bool export_vtp, bool export_bge
         file.close();
 
         if(export_bgeo) export_bgeo_f(frame, current_frame);
-        if(export_vtp) export_vtu_f(frame, current_frame, prms, initial_frame);
-        if(export_indenter) export_indenter_f(frame, current_frame, prms, indenter_force_buffer);
+
+        if(export_vtp) export_vtu_f(frame, current_frame);
+
+        if(export_indenter) export_indenter_f(frame, current_frame, indenter_force_buffer,
+                              indenter_x, indenter_y, GridZ, cellsize, IndDiameter, IceBlockDimZ, n_indenter_subdivisions_angular);
+
 
         frame++;
         snprintf(fileName, sizeof(fileName), "v%05d.h5", frame);
@@ -124,16 +169,17 @@ void convert_to_bgeo_vtp(std::string directory, bool export_vtp, bool export_bge
     for(int i=0;i<indenter_force_history.size();i++)
     {
         Vector3r &v = indenter_force_history[i];
-        double t = i*prms.InitialTimeStep*prms.UpdateEveryNthStep;
+        double t = i*InitialTimeStep*UpdateEveryNthStep;
         ofs << t << ',' << v.norm() << ',' << v[0] << ',' << v[1] << '\n';
     }
     ofs.close();
-
 }
 
 
-void export_indenter_f(int frame, std::vector<icy::SnapshotManager::VisualPoint> &current_frame, icy::SimParams3D &prms,
-                       std::vector<double> &indenter_force_buffer)
+void export_indenter_f(int frame, std::vector<icy::SnapshotManager::VisualPoint> &current_frame,
+                       std::vector<double> &indenter_force_buffer,
+                        double indenter_x, double indenter_y, int GridZ, double cellsize, double IndDiameter, double IceBlockDimZ,
+                        int n_indenter_subdivisions_angular)
 {
     std::string dir = "output_vtu_indenter";
     // ensure that directory exists
@@ -154,12 +200,10 @@ void export_indenter_f(int frame, std::vector<icy::SnapshotManager::VisualPoint>
     vtkNew<vtkXMLUnstructuredGridWriter> writer2;
 
     cylinder->SetResolution(33);
-    cylinder->SetRadius(prms.IndDiameter/2.f);
-    cylinder->SetHeight(prms.GridZ * prms.cellsize);
+    cylinder->SetRadius(IndDiameter/2.f);
+    cylinder->SetHeight(GridZ*cellsize);
 
-    double indenter_x = prms.indenter_x;
-    double indenter_y = prms.indenter_y;
-    double indenter_z = prms.GridZ * prms.cellsize/2;
+    double indenter_z = GridZ * cellsize/2;
     cylinder->SetCenter(indenter_x, indenter_z, -indenter_y);
     cylinder->Update();
 
@@ -185,19 +229,22 @@ void export_indenter_f(int frame, std::vector<icy::SnapshotManager::VisualPoint>
     vtkNew<vtkPoints> grid_points;
     vtkNew<vtkStructuredGrid> structuredGrid;
 
-    double h = prms.cellsize;
+    double h = cellsize;
     double hsq = h*h;
-    int indenter_blocks = (int)((prms.IceBlockDimZ/h)*0.8+prms.GridZ*0.2);
-    int fromZ = (prms.GridZ-indenter_blocks)/2;
+    int indenter_blocks = (int)((IceBlockDimZ/h)*0.8+GridZ*0.2);
+    int fromZ = (GridZ-indenter_blocks)/2;
+
 
     int nx = indenter_blocks+1;
-    int ny = prms.n_indenter_subdivisions_angular*0.3+1;
-    structuredGrid->SetDimensions(nx, ny, 1);
+    int ny = n_indenter_subdivisions_angular*0.3+1;
+    double offset = (GridZ - nx)*h/2;
+
+        structuredGrid->SetDimensions(nx, ny, 1);
     grid_points->SetNumberOfPoints(nx*ny);
     for(int idx_y=0; idx_y<ny; idx_y++)
         for(int idx_x=0; idx_x<nx; idx_x++)
         {
-            grid_points->SetPoint(idx_x+idx_y*nx, idx_x*h, idx_y*h, 0);
+            grid_points->SetPoint(idx_x+idx_y*nx, idx_x*h, 0, idx_y*h+offset);
         }
     structuredGrid->SetPoints(grid_points);
 
@@ -207,7 +254,7 @@ void export_indenter_f(int frame, std::vector<icy::SnapshotManager::VisualPoint>
     for(int idx_y=0; idx_y<(ny-1); idx_y++)
         for(int idx_x=0; idx_x<(nx-1); idx_x++)
         {
-            int idx = (idx_x+fromZ) + prms.GridZ*(prms.n_indenter_subdivisions_angular-idx_y-1);
+            int idx = (idx_x+fromZ) + GridZ*(n_indenter_subdivisions_angular-idx_y-1);
             Eigen::Map<Vector3r> f(&indenter_force_buffer[3*idx]);
             values->SetValue((idx_x+idx_y*(nx-1)), f.norm()/hsq);
         }
@@ -230,32 +277,27 @@ void export_indenter_f(int frame, std::vector<icy::SnapshotManager::VisualPoint>
 }
 
 
-void export_vtu_f(int frame, std::vector<icy::SnapshotManager::VisualPoint> &current_frame, icy::SimParams3D &prms,
-        std::vector<icy::SnapshotManager::VisualPoint> &initial_frame)
+void export_vtu_f(int frame, std::vector<icy::SnapshotManager::VisualPoint> &current_frame)
 {
     spdlog::info("export_vtu {}", frame);
     int n = current_frame.size();
 
     vtkNew<vtkPoints> points;
-    vtkNew<vtkFloatArray> values, displacement_total;
+    vtkNew<vtkFloatArray> values;
     vtkNew<vtkIntArray> values_random_colors;
     points->SetNumberOfPoints(n);
     values->SetNumberOfValues(n);
-    displacement_total->SetNumberOfValues(n);
     values_random_colors->SetNumberOfValues(n);
     values->SetName("Jp_inv");
     values_random_colors->SetName("random_colors");
-    displacement_total->SetName("displacement");
 
     for(int i=0;i<n;i++)
     {
         icy::SnapshotManager::VisualPoint &vp = current_frame[i];
-        icy::SnapshotManager::VisualPoint &vpi = initial_frame[i];
         points->SetPoint(i, vp.p[0], vp.p[1], vp.p[2]);
         values->SetValue(i, vp.Jp_inv);
         int color_value = (i%4)+(vp.Jp_inv < 1 ? 0 : 10);
         values_random_colors->SetValue(i, color_value);
-        displacement_total->SetValue(i, (vp.pos()-vpi.pos()).norm());
     }
     values->Modified();
     values_random_colors->Modified();
@@ -264,8 +306,6 @@ void export_vtu_f(int frame, std::vector<icy::SnapshotManager::VisualPoint> &cur
     polydata->SetPoints(points);
     polydata->GetPointData()->AddArray(values);
     polydata->GetPointData()->AddArray(values_random_colors);
-    polydata->GetPointData()->AddArray(displacement_total);
-//    polydata->GetPointData()->SetActiveScalars("Jp_inv");
 
     std::string dir = "output_vtk";
     std::filesystem::path od(dir);

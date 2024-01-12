@@ -14,6 +14,8 @@
 "IceTensileStrength":10e6,
 "IceShearStrength":5e6,
 "DP_phi":70,
+"BlockOffsetX":20,
+"DP_threshold_p":1000,
 
 "SimulationEndTime":12,
 "PoissonsRatio":0.3,

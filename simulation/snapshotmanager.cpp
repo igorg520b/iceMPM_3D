@@ -105,13 +105,7 @@ void icy::SnapshotManager::SaveFrame()
     std::filesystem::path odp(model->outputDirectory);
     if(!std::filesystem::is_directory(odp) || !std::filesystem::exists(odp)) std::filesystem::create_directory(odp);
 
-    if(export_vtp)
-    {
-        ExportPointsAsVTP();
-        ExportIndenterAsVTU();
-    }
     if(export_h5) ExportPointsAsH5();
-    if(export_force) WriteIndenterForceCSV();
 }
 
 
@@ -151,7 +145,7 @@ void icy::SnapshotManager::ReadRawPoints(std::string fileName)
     {
         Point3D p;
         p.Reset();
-        buffer[k][0] += 5*h;
+        buffer[k][0] += (model->prms.BlockOffsetX+5)*h;
         buffer[k][1] += 2*h;
         buffer[k][2] += z_offset; // center
         for(int i=0;i<3;i++) p.pos[i] = buffer[k][i];
@@ -164,8 +158,6 @@ void icy::SnapshotManager::ReadRawPoints(std::string fileName)
     model->Reset();
     model->Prepare();
 }
-
-
 
 void icy::SnapshotManager::PopulateVisualPoint(VisualPoint &vp, int idx)
 {
@@ -207,8 +199,8 @@ void icy::SnapshotManager::ExportPointsAsH5()
     }
     else
     {
-        const float visual_threshold = 2e-3;
-        const float Jp_inv_threshold = 1e-4;
+        const float visual_threshold = 1e-3;
+        const float Jp_inv_threshold = 1e-3;
         float dt = (float)model->prms.InitialTimeStep;
         saved_frame.clear();
         for(int i=0;i<model->prms.nPts;i++)
@@ -221,7 +213,8 @@ void icy::SnapshotManager::ExportPointsAsH5()
             Eigen::Vector3f predicted_position = p_p.pos() + p_p.vel()*(dt*elapsed_frames);
             Eigen::Vector3f prediction_error = p_c.pos() - predicted_position;
             float Jp_diff = abs(p_c.Jp_inv - p_p.Jp_inv);
-            if(prediction_error.norm() > visual_threshold || Jp_diff > Jp_inv_threshold)
+            bool writeJp = (p_p.Jp_inv == 1.0 && p_c.Jp_inv != 1.0);
+            if(prediction_error.norm() > visual_threshold || Jp_diff > Jp_inv_threshold || writeJp)
             {
                 last_refresh_frame[i] = current_frame_number;
                 p_p = p_c;
@@ -241,7 +234,7 @@ void icy::SnapshotManager::ExportPointsAsH5()
     std::filesystem::path od(saveDir);
     if(!std::filesystem::is_directory(od) || !std::filesystem::exists(od)) std::filesystem::create_directory(od);
 
-    // save!
+    // save
     H5::H5File file(fullFilePath, H5F_ACC_TRUNC);
 
     hsize_t dims_params = sizeof(icy::SimParams3D);
@@ -259,6 +252,39 @@ void icy::SnapshotManager::ExportPointsAsH5()
     H5::DataSet dataset_indneter_force = file.createDataSet("Indenter_Force", H5::PredType::NATIVE_DOUBLE, dataspace_indneter_force, proplist2);
     dataset_indneter_force.write(model->gpu.host_side_indenter_force_accumulator, H5::PredType::NATIVE_DOUBLE);
 
+    // save some additional data as attributes
+    hsize_t att_dim = 1;
+    H5::DataSpace att_dspace(1, &att_dim);
+    H5::Attribute att_indenter_x = dataset_indneter_force.createAttribute("indenter_x", H5::PredType::NATIVE_DOUBLE, att_dspace);
+    H5::Attribute att_indenter_y = dataset_indneter_force.createAttribute("indenter_y", H5::PredType::NATIVE_DOUBLE, att_dspace);
+    H5::Attribute att_SimulationTime = dataset_indneter_force.createAttribute("SimulationTime", H5::PredType::NATIVE_DOUBLE, att_dspace);
+    att_indenter_x.write(H5::PredType::NATIVE_DOUBLE, &model->prms.indenter_x);
+    att_indenter_y.write(H5::PredType::NATIVE_DOUBLE, &model->prms.indenter_y);
+    att_SimulationTime.write(H5::PredType::NATIVE_DOUBLE, &model->prms.SimulationTime);
+
+    if(current_frame_number == 1)
+    {
+        H5::Attribute att_GridZ = dataset_indneter_force.createAttribute("GridZ", H5::PredType::NATIVE_INT, att_dspace);
+        H5::Attribute att_nPts = dataset_indneter_force.createAttribute("nPts", H5::PredType::NATIVE_INT, att_dspace);
+        H5::Attribute att_UpdateEveryNthStep = dataset_indneter_force.createAttribute("UpdateEveryNthStep", H5::PredType::NATIVE_INT, att_dspace);
+        H5::Attribute att_n_indenter_subdivisions_angular = dataset_indneter_force.createAttribute("n_indenter_subdivisions_angular", H5::PredType::NATIVE_INT, att_dspace);
+
+        att_GridZ.write(H5::PredType::NATIVE_INT, &model->prms.GridZ);
+        att_nPts.write(H5::PredType::NATIVE_INT, &model->prms.nPts);
+        att_UpdateEveryNthStep.write(H5::PredType::NATIVE_INT, &model->prms.UpdateEveryNthStep);
+        att_n_indenter_subdivisions_angular.write(H5::PredType::NATIVE_INT, &model->prms.n_indenter_subdivisions_angular);
+
+        H5::Attribute att_cellsize = dataset_indneter_force.createAttribute("cellsize", H5::PredType::NATIVE_DOUBLE, att_dspace);
+        H5::Attribute att_IceBlockDimZ = dataset_indneter_force.createAttribute("IceBlockDimZ", H5::PredType::NATIVE_DOUBLE, att_dspace);
+        H5::Attribute att_IndDiameter = dataset_indneter_force.createAttribute("IndDiameter", H5::PredType::NATIVE_DOUBLE, att_dspace);
+        H5::Attribute att_InitialTimeStep = dataset_indneter_force.createAttribute("InitialTimeStep", H5::PredType::NATIVE_DOUBLE, att_dspace);
+
+        att_cellsize.write(H5::PredType::NATIVE_DOUBLE, &model->prms.cellsize);
+        att_IceBlockDimZ.write(H5::PredType::NATIVE_DOUBLE, &model->prms.IceBlockDimZ);
+        att_IndDiameter.write(H5::PredType::NATIVE_DOUBLE, &model->prms.IndDiameter);
+        att_InitialTimeStep.write(H5::PredType::NATIVE_DOUBLE, &model->prms.InitialTimeStep);
+    }
+
     hsize_t dims_points = sizeof(VisualPoint)*saved_frame.size();
     hsize_t dims_unlimited = H5S_UNLIMITED;
     H5::DataSpace dataspace_points(1, &dims_points, &dims_unlimited);
@@ -274,120 +300,6 @@ void icy::SnapshotManager::ExportPointsAsH5()
     file.close();
 }
 
-
-void icy::SnapshotManager::ExportPointsAsVTP()
-{
-    std::string saveDir = model->outputDirectory + "/" + dir_vtp;
-
-    // ensure that directory exists
-    std::filesystem::path od(saveDir);
-    if(!std::filesystem::is_directory(od) || !std::filesystem::exists(od)) std::filesystem::create_directory(od);
-
-    int frame = model->prms.AnimationFrameNumber();
-
-    char fileName[20];
-    snprintf(fileName, sizeof(fileName), "p_%05d.vtp", frame);
-    std::string savePath = saveDir + "/" + fileName;
-    spdlog::info("export points {} to file {}", frame, savePath);
-
-
-
-    spdlog::info("icy::SnapshotManager::ExportPointsAsVTP()");
-    spdlog::info("export_vtu {}", frame);
-    int n = model->prms.nPts;
-
-    vtkNew<vtkPoints> points;
-    vtkNew<vtkFloatArray> values;
-    points->SetNumberOfPoints(n);
-    values->SetNumberOfValues(n);
-    values->SetName("Jp_inv");
-
-    for(int i=0;i<n;i++)
-    {
-        Vector3r pos = icy::Point3D::getPos(model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, i);
-        double Jp_inv = icy::Point3D::getJp_inv(model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, i);
-        points->SetPoint(i, pos[0], pos[1], pos[2]);
-        values->SetValue(i, Jp_inv);
-    }
-    values->Modified();
-
-    vtkNew<vtkPolyData> polydata;
-    polydata->SetPoints(points);
-    polydata->GetPointData()->AddArray(values);
-    polydata->GetPointData()->SetActiveScalars("Jp_inv");
-
-    // Write the file
-    vtkNew<vtkXMLPolyDataWriter> writer;
-    writer->SetFileName(savePath.c_str());
-    writer->SetInputData(polydata);
-    writer->Write();
-
-    spdlog::info("export_vtk frame done {}", frame);
-}
-
-void icy::SnapshotManager::ExportIndenterAsVTU()
-{
-    std::string saveDir = model->outputDirectory + "/" + dir_indenter;
-
-    // ensure that directory exists
-    std::filesystem::path od(saveDir);
-    if(!std::filesystem::is_directory(od) || !std::filesystem::exists(od)) std::filesystem::create_directory(od);
-
-    int frame = model->prms.AnimationFrameNumber();
-
-    char fileName[20];
-    snprintf(fileName, sizeof(fileName), "i_%05d.vtu", frame);
-    std::string savePath = saveDir + "/" + fileName;
-    spdlog::info("export indenter vtu {} to file {}", frame, savePath);
-
-    vtkNew<vtkCylinderSource> cylinder;
-    vtkNew<vtkTransform> transform;
-    vtkNew<vtkTransformFilter> transformFilter;
-    vtkNew<vtkAppendFilter> appendFilter;
-    vtkNew<vtkUnstructuredGrid> unstructuredGrid;
-    vtkNew<vtkXMLUnstructuredGridWriter> writer2;
-
-    cylinder->SetResolution(33);
-    cylinder->SetRadius(model->prms.IndDiameter/2.f);
-    cylinder->SetHeight(model->prms.GridZ * model->prms.cellsize);
-
-    double indenter_x = model->prms.indenter_x;
-    double indenter_y = model->prms.indenter_y;
-    double indenter_z = model->prms.GridZ * model->prms.cellsize/2;
-    cylinder->SetCenter(indenter_x, indenter_z, -indenter_y);
-    cylinder->Update();
-
-    transform->RotateX(90);
-    transformFilter->SetTransform(transform);
-    transformFilter->SetInputConnection(cylinder->GetOutputPort());
-    transformFilter->Update();
-
-    appendFilter->SetInputConnection(transformFilter->GetOutputPort());
-    appendFilter->Update();
-
-    unstructuredGrid->ShallowCopy(appendFilter->GetOutput());
-
-    // Write the unstructured grid.
-    writer2->SetFileName(savePath.c_str());
-    writer2->SetInputData(unstructuredGrid);
-    writer2->Write();
-    }
-
-void icy::SnapshotManager::WriteIndenterForceCSV()
-{
-    spdlog::info("icy::SnapshotManager::WriteIndenterForceCSV()");
-
-    std::string fullFilePath = model->outputDirectory + "/indenter_force.csv";
-    std::ofstream ofs(fullFilePath, std::ofstream::out | std::ofstream::trunc);
-    ofs << "fx,fy,fz,F_total\n";
-    for(int i=0;i<model->gpu.indenter_force_history.size();i++)
-    {
-        Vector3r &v = model->gpu.indenter_force_history[i];
-        ofs << v[0] << ',' << v[1] << ',' << v[2] << ',' << v.norm() << '\n';
-    }
-    ofs.close();
-}
-
 std::vector<std::array<float, 3>> icy::SnapshotManager::GenerateBlock(float bx, float by, float bz, int n)
 {
     constexpr float magic_constant = 0.58;
@@ -400,18 +312,3 @@ std::vector<std::array<float, 3>> icy::SnapshotManager::GenerateBlock(float bx, 
     return prresult;
 }
 
-
-
-/*
-attributes save/load
-//    hsize_t att_dim = 1;
-//    H5::DataSpace att_dspace(1, &att_dim);
-//    H5::Attribute att = dataset_points.createAttribute("full_data", H5::PredType::NATIVE_INT,att_dspace);
-//    att.write(H5::PredType::NATIVE_INT, &full_data);
-
-
-//    H5::Attribute att = dataset_points.openAttribute("full_data");
-//    int full_data;
-//    att.read(H5::PredType::NATIVE_INT, &full_data);
-
-*/

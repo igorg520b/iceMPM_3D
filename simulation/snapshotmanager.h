@@ -45,10 +45,6 @@ private:
     std::vector<int> last_refresh_frame;
 
     void ExportPointsAsH5();
-    void ExportPointsAsVTP();
-    void ExportIndenterAsVTU();
-    void WriteIndenterForceCSV();
-
     void PopulateVisualPoint(VisualPoint &vp, int idx);
 };
 
