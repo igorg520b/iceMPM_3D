@@ -15,13 +15,13 @@
 void run_simulation(icy::Model3D &model, icy::SnapshotManager &snapshot);
 
 
-void start_simulation_from_json(std::string jsonFile, bool export_vtp)
+void start_simulation_from_json(std::string jsonFile, bool export_vtp, bool export_h5_raw)
 {
 
     spdlog::info("starting simulation from JSON configuration file {}", jsonFile);
     icy::Model3D model;
     icy::SnapshotManager snapshot;
-    snapshot.export_vtp = export_vtp;
+    snapshot.export_h5_raw = export_h5_raw;
     snapshot.model = &model;
     model.gpu.initialize();
     std::string rawPointsFile = model.prms.ParseFile(jsonFile);
@@ -30,12 +30,12 @@ void start_simulation_from_json(std::string jsonFile, bool export_vtp)
 }
 
 
-void resume_simulation_from_snapshot(std::string snapshotFile, bool export_vtp)
+void resume_simulation_from_snapshot(std::string snapshotFile, bool export_vtp, bool export_h5_raw)
 {
     spdlog::info("resuming simulation from full snapshot file {}", snapshotFile);
     icy::Model3D model;
     icy::SnapshotManager snapshot;
-    snapshot.export_vtp = export_vtp;
+    snapshot.export_h5_raw = export_h5_raw;
     snapshot.model = &model;
     model.gpu.initialize();
     snapshot.ReadFullSnapshot(snapshotFile);
@@ -53,9 +53,7 @@ void run_simulation(icy::Model3D &model, icy::SnapshotManager &snapshot)
     std::atomic<bool> request_full_snapshot = false;
     std::atomic<bool> request_terminate = false;
 
-    snapshot.AllocateMemoryForFrames();
-    snapshot.export_force = true;
-    snapshot.export_h5 = true;
+    if(!snapshot.export_h5_raw) snapshot.AllocateMemoryForFrames();
 
     // what to do once the data is available
     model.gpu.transfer_completion_callback = [&](){

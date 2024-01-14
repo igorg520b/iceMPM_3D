@@ -1,3 +1,5 @@
+#include <omp.h>
+
 #include "snapshotmanager.h"
 #include "model_3d.h"
 
@@ -13,6 +15,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <cmath>
+#include <utility>
 
 #include <vtkCellArray.h>
 #include <vtkNew.h>
@@ -20,14 +23,18 @@
 #include <vtkPolyData.h>
 #include <vtkXMLPolyDataWriter.h>
 #include <vtkFloatArray.h>
+#include <vtkIntArray.h>
 #include <vtkPointData.h>
 #include <vtkUnstructuredGrid.h>
+#include <vtkStructuredGrid.h>
 #include <vtkXMLUnstructuredGridWriter.h>
+#include <vtkXMLStructuredGridWriter.h>
 #include <vtkCylinderSource.h>
 #include <vtkPolyDataMapper.h>
 #include <vtkTransform.h>
 #include <vtkTransformFilter.h>
 #include <vtkAppendFilter.h>
+#include <vtkCellData.h>
 
 void icy::SnapshotManager::SaveFullSnapshot(std::string fileName)
 {
@@ -45,7 +52,7 @@ void icy::SnapshotManager::SaveFullSnapshot(std::string fileName)
     H5::DataSpace dataspace_points(1, &dims_points, &dims_unlimited);
 
     hsize_t chunk_dims = 1024*1024;
-    if(chunk_dims > dims_points) chunk_dims = dims_points/10;
+    if(chunk_dims > dims_points) chunk_dims = dims_points;
     H5::DSetCreatPropList proplist;
     proplist.setChunk(1, &chunk_dims);
     proplist.setDeflate(6);
@@ -98,16 +105,15 @@ void icy::SnapshotManager::ReadFullSnapshot(std::string fileName)
     model->Prepare();
 }
 
-
 void icy::SnapshotManager::SaveFrame()
 {
     spdlog::info("icy::SnapshotManager::SaveFrame()");
     std::filesystem::path odp(model->outputDirectory);
     if(!std::filesystem::is_directory(odp) || !std::filesystem::exists(odp)) std::filesystem::create_directory(odp);
 
-    if(export_h5) ExportPointsAsH5();
+    if(export_h5_raw) ExportPointsAsH5_Raw();
+    else ExportPointsAsH5();
 }
-
 
 void icy::SnapshotManager::ReadRawPoints(std::string fileName)
 {
@@ -157,6 +163,18 @@ void icy::SnapshotManager::ReadRawPoints(std::string fileName)
     model->gpu.transfer_ponts_to_device();
     model->Reset();
     model->Prepare();
+}
+
+std::vector<std::array<float, 3>> icy::SnapshotManager::GenerateBlock(float bx, float by, float bz, int n)
+{
+    constexpr float magic_constant = 0.58;
+    const float bvol = bx*by*bz;
+    const float kRadius = cbrt(magic_constant*bvol/n);
+
+    const std::array<float, 3>kXMin{0, 0, 0};
+    const std::array<float, 3>kXMax{bx, by, bz};
+    std::vector<std::array<float, 3>> prresult = thinks::PoissonDiskSampling(kRadius, kXMin, kXMax);
+    return prresult;
 }
 
 void icy::SnapshotManager::PopulateVisualPoint(VisualPoint &vp, int idx)
@@ -300,15 +318,314 @@ void icy::SnapshotManager::ExportPointsAsH5()
     file.close();
 }
 
-std::vector<std::array<float, 3>> icy::SnapshotManager::GenerateBlock(float bx, float by, float bz, int n)
+void icy::SnapshotManager::ExportPointsAsH5_Raw()
 {
-    constexpr float magic_constant = 0.58;
-    const float bvol = bx*by*bz;
-    const float kRadius = cbrt(magic_constant*bvol/n);
+    spdlog::info("ExportPointsAsH5_NoCompression");
 
-    const std::array<float, 3>kXMin{0, 0, 0};
-    const std::array<float, 3>kXMax{bx, by, bz};
-    std::vector<std::array<float, 3>> prresult = thinks::PoissonDiskSampling(kRadius, kXMin, kXMax);
-    return prresult;
+    // populate saved_frame
+    const int current_frame_number = model->prms.AnimationFrameNumber();
+    char fileName[20];
+    snprintf(fileName, sizeof(fileName), "V%05d.h5", current_frame_number);
+    std::string saveDir = model->outputDirectory + "/" + dir_h5_raw;
+    std::string fullFilePath = saveDir + "/" + fileName;
+    spdlog::info("saving NC frame {} to file {}", current_frame_number, fullFilePath);
+
+    // ensure that directory exists
+    std::filesystem::path od(saveDir);
+    if(!std::filesystem::is_directory(od) || !std::filesystem::exists(od)) std::filesystem::create_directory(od);
+
+    // save
+    H5::H5File file(fullFilePath, H5F_ACC_TRUNC);
+
+    // indenter
+    hsize_t dims_indenter_force = model->prms.indenter_array_size;
+    hsize_t chunk_dims_indenter = 10000;
+    if(chunk_dims_indenter > dims_indenter_force) chunk_dims_indenter = dims_indenter_force/10;
+    H5::DSetCreatPropList proplist2;
+    proplist2.setChunk(1, &chunk_dims_indenter);
+    proplist2.setDeflate(5);
+    H5::DataSpace dataspace_indneter_force(1, &dims_indenter_force);
+    H5::DataSet dataset_indneter_force = file.createDataSet("Indenter_Force", H5::PredType::NATIVE_DOUBLE, dataspace_indneter_force, proplist2);
+    dataset_indneter_force.write(model->gpu.host_side_indenter_force_accumulator, H5::PredType::NATIVE_DOUBLE);
+
+    // save some additional data as attributes
+    hsize_t att_dim = 1;
+    H5::DataSpace att_dspace(1, &att_dim);
+    H5::Attribute att_indenter_x = dataset_indneter_force.createAttribute("indenter_x", H5::PredType::NATIVE_DOUBLE, att_dspace);
+    H5::Attribute att_indenter_y = dataset_indneter_force.createAttribute("indenter_y", H5::PredType::NATIVE_DOUBLE, att_dspace);
+    H5::Attribute att_SimulationTime = dataset_indneter_force.createAttribute("SimulationTime", H5::PredType::NATIVE_DOUBLE, att_dspace);
+    att_indenter_x.write(H5::PredType::NATIVE_DOUBLE, &model->prms.indenter_x);
+    att_indenter_y.write(H5::PredType::NATIVE_DOUBLE, &model->prms.indenter_y);
+    att_SimulationTime.write(H5::PredType::NATIVE_DOUBLE, &model->prms.SimulationTime);
+
+    H5::Attribute att_GridZ = dataset_indneter_force.createAttribute("GridZ", H5::PredType::NATIVE_INT, att_dspace);
+    H5::Attribute att_nPts = dataset_indneter_force.createAttribute("nPts", H5::PredType::NATIVE_INT, att_dspace);
+    H5::Attribute att_UpdateEveryNthStep = dataset_indneter_force.createAttribute("UpdateEveryNthStep", H5::PredType::NATIVE_INT, att_dspace);
+    H5::Attribute att_n_indenter_subdivisions_angular = dataset_indneter_force.createAttribute("n_indenter_subdivisions_angular", H5::PredType::NATIVE_INT, att_dspace);
+
+    att_GridZ.write(H5::PredType::NATIVE_INT, &model->prms.GridZ);
+    att_nPts.write(H5::PredType::NATIVE_INT, &model->prms.nPts);
+    att_UpdateEveryNthStep.write(H5::PredType::NATIVE_INT, &model->prms.UpdateEveryNthStep);
+    att_n_indenter_subdivisions_angular.write(H5::PredType::NATIVE_INT, &model->prms.n_indenter_subdivisions_angular);
+
+    H5::Attribute att_cellsize = dataset_indneter_force.createAttribute("cellsize", H5::PredType::NATIVE_DOUBLE, att_dspace);
+    H5::Attribute att_IceBlockDimZ = dataset_indneter_force.createAttribute("IceBlockDimZ", H5::PredType::NATIVE_DOUBLE, att_dspace);
+    H5::Attribute att_IndDiameter = dataset_indneter_force.createAttribute("IndDiameter", H5::PredType::NATIVE_DOUBLE, att_dspace);
+    H5::Attribute att_InitialTimeStep = dataset_indneter_force.createAttribute("InitialTimeStep", H5::PredType::NATIVE_DOUBLE, att_dspace);
+
+    att_cellsize.write(H5::PredType::NATIVE_DOUBLE, &model->prms.cellsize);
+    att_IceBlockDimZ.write(H5::PredType::NATIVE_DOUBLE, &model->prms.IceBlockDimZ);
+    att_IndDiameter.write(H5::PredType::NATIVE_DOUBLE, &model->prms.IndDiameter);
+    att_InitialTimeStep.write(H5::PredType::NATIVE_DOUBLE, &model->prms.InitialTimeStep);
+
+    // points
+    hsize_t dims_points = (hsize_t)(model->prms.nPts*4);
+    hsize_t dims_unlimited = H5S_UNLIMITED;
+    H5::DataSpace dataspace_points(1, &dims_points, &dims_unlimited);
+    hsize_t chunk_dims = (hsize_t)std::min(1024*1024, model->prms.nPts);
+    H5::DSetCreatPropList proplist;
+    proplist.setChunk(1, &chunk_dims);
+    proplist.setDeflate(5);
+    H5::DataSet dataset_points = file.createDataSet("Points", H5::PredType::NATIVE_DOUBLE, dataspace_points, proplist);
+
+    hsize_t dims_memspace = icy::SimParams3D::nPtsArrays*model->prms.nPtsPitch;
+    H5::DataSpace memspace1(1, &dims_memspace);
+    hsize_t count1 = model->prms.nPts;
+    hsize_t offset1 = model->prms.nPtsPitch * icy::SimParams3D::idx_Jp_inv;
+    memspace1.selectHyperslab(H5S_SELECT_SET, &count1, &offset1);
+    hsize_t offset2 = model->prms.nPtsPitch * icy::SimParams3D::posx;
+    hsize_t count2 = 3;
+    hsize_t stride2 = model->prms.nPtsPitch;
+    hsize_t block2 = model->prms.nPts;
+    memspace1.selectHyperslab(H5S_SELECT_OR, &count2, &offset2, &stride2, &block2);
+    dataset_points.write(model->gpu.tmp_transfer_buffer, H5::PredType::NATIVE_DOUBLE, memspace1, dataspace_points);
+
+    file.close();
+}
+
+void icy::SnapshotManager::H5Raw_to_Paraview(std::string path)
+{
+    int lastidx = -1;
+
+    for (const auto & entry : std::filesystem::directory_iterator(path))
+    {
+        std::string filename = entry.path().filename();
+        if(filename[0]!='V') continue;
+        if(filename.substr(6,3)!=".h5") continue;
+        int frame_number = std::stoi(filename.substr(1,5));
+        lastidx = std::max(lastidx, frame_number);
+    }
+    spdlog::info("H5Raw_to_Paraview frames {}",lastidx);
+
+    std::vector<std::pair<Vector3r,double>> indenter_force_history(lastidx);
+    std::string dir_vtp = "output_vtp";
+    std::string dir_vtu = "output_vtu_indenter";
+    std::string dir_tekscan = "output_tekscan";
+    std::filesystem::path od_vtp(dir_vtp);
+    std::filesystem::path od_vtu(dir_vtu);
+    std::filesystem::path od_tekscan(dir_tekscan);
+    if(!std::filesystem::is_directory(od_vtp) || !std::filesystem::exists(od_vtp)) std::filesystem::create_directory(od_vtp);
+    if(!std::filesystem::is_directory(od_vtu) || !std::filesystem::exists(od_vtu)) std::filesystem::create_directory(od_vtu);
+    if(!std::filesystem::is_directory(od_tekscan) || !std::filesystem::exists(od_tekscan)) std::filesystem::create_directory(od_tekscan);
+
+#pragma omp parallel for num_threads(3)
+    for(int frame=1; frame<lastidx; frame++)
+    {
+        int n_indenter_subdivisions_angular, GridZ, nPts, UpdateEveryNthStep, indenter_array_size;
+        double indenter_x, indenter_y;
+        double cellsize, IceBlockDimZ, IndDiameter, InitialTimeStep, SimulationTime;
+        std::vector<double> indenter_force_buffer, pts_buffer;
+        char fileName[20];
+
+        // read data
+        {
+            snprintf(fileName, sizeof(fileName), "V%05d.h5", frame);
+            std::string filePath = path + "/" + fileName;
+            spdlog::info("thread {}, file {}", omp_get_thread_num(), fileName);
+
+            H5::H5File file(filePath, H5F_ACC_RDONLY);
+
+            H5::DataSet dataset_indenter = file.openDataSet("Indenter_Force");
+
+            // read some parameters that are saved as attributes on the indenter dataset
+            H5::Attribute att_indenter_x = dataset_indenter.openAttribute("indenter_x");
+            H5::Attribute att_indenter_y = dataset_indenter.openAttribute("indenter_y");
+            H5::Attribute att_SimulationTime = dataset_indenter.openAttribute("SimulationTime");
+            att_indenter_x.read(H5::PredType::NATIVE_DOUBLE, &indenter_x);
+            att_indenter_y.read(H5::PredType::NATIVE_DOUBLE, &indenter_y);
+            att_SimulationTime.read(H5::PredType::NATIVE_DOUBLE, &SimulationTime);
+
+            H5::Attribute att_nPts = dataset_indenter.openAttribute("nPts");
+            H5::Attribute att_UpdateEveryNthStep = dataset_indenter.openAttribute("UpdateEveryNthStep");
+            H5::Attribute att_n_indenter_subdivisions_angular = dataset_indenter.openAttribute("n_indenter_subdivisions_angular");
+            H5::Attribute att_GridZ = dataset_indenter.openAttribute("GridZ");
+
+            att_GridZ.read(H5::PredType::NATIVE_INT, &GridZ);
+            att_nPts.read(H5::PredType::NATIVE_INT, &nPts);
+            att_UpdateEveryNthStep.read(H5::PredType::NATIVE_INT, &UpdateEveryNthStep);
+            att_n_indenter_subdivisions_angular.read(H5::PredType::NATIVE_INT, &n_indenter_subdivisions_angular);
+
+            H5::Attribute att_cellsize = dataset_indenter.openAttribute("cellsize");
+            H5::Attribute att_IceBlockDimZ = dataset_indenter.openAttribute("IceBlockDimZ");
+            H5::Attribute att_IndDiameter = dataset_indenter.openAttribute("IndDiameter");
+            H5::Attribute att_InitialTimeStep = dataset_indenter.openAttribute("InitialTimeStep");
+
+            att_cellsize.read(H5::PredType::NATIVE_DOUBLE, &cellsize);
+            att_IceBlockDimZ.read(H5::PredType::NATIVE_DOUBLE, &IceBlockDimZ);
+            att_IndDiameter.read(H5::PredType::NATIVE_DOUBLE, &IndDiameter);
+            att_InitialTimeStep.read(H5::PredType::NATIVE_DOUBLE, &InitialTimeStep);
+
+            indenter_array_size = 3*GridZ*n_indenter_subdivisions_angular;
+
+            indenter_force_buffer.resize(indenter_array_size);
+            dataset_indenter.read(indenter_force_buffer.data(), H5::PredType::NATIVE_DOUBLE);
+
+            Vector3r indenter_force_elem;
+            indenter_force_elem.setZero();
+            for(int i=0; i<indenter_array_size; i++) indenter_force_elem[i%3] += indenter_force_buffer[i];
+            indenter_force_history[frame-1] = {indenter_force_elem,SimulationTime};
+
+            // points
+            pts_buffer.resize(nPts*4);
+            H5::DataSet dataset_points = file.openDataSet("Points");
+            dataset_points.read(pts_buffer.data(), H5::PredType::NATIVE_DOUBLE);
+            file.close();
+        }
+
+        // export VTP
+        {
+            vtkNew<vtkPoints> points;
+            vtkNew<vtkFloatArray> values;
+            vtkNew<vtkIntArray> values_random_colors;
+            points->SetNumberOfPoints(nPts);
+            values->SetNumberOfValues(nPts);
+            values_random_colors->SetNumberOfValues(nPts);
+            values->SetName("Jp_inv");
+            values_random_colors->SetName("random_colors");
+
+            for(int i=0;i<nPts;i++)
+            {
+                double Jp_inv = pts_buffer[0*nPts + i];
+                double x = pts_buffer[1*nPts + i];
+                double y = pts_buffer[2*nPts + i];
+                double z = pts_buffer[3*nPts + i];
+                points->SetPoint(i, x, y, z);
+                values->SetValue(i, Jp_inv);
+                int color_value = (i%4)+(Jp_inv < 1 ? 0 : 10);
+                values_random_colors->SetValue(i, color_value);
+            }
+            values->Modified();
+            values_random_colors->Modified();
+
+            vtkNew<vtkPolyData> polydata;
+            polydata->SetPoints(points);
+            polydata->GetPointData()->AddArray(values);
+            polydata->GetPointData()->AddArray(values_random_colors);
+
+            snprintf(fileName, sizeof(fileName), "p_%05d.vtp", frame);
+            std::string savePath_vtp = dir_vtp + "/" + fileName;
+
+            // Write the file
+            vtkNew<vtkXMLPolyDataWriter> writer;
+            writer->SetFileName(savePath_vtp.c_str());
+            writer->SetInputData(polydata);
+            writer->Write();
+        }
+
+        // export intenter VTU
+        {
+            snprintf(fileName, sizeof(fileName), "i_%05d.vtu", frame);
+            std::string savePath = dir_vtu + "/" + fileName;
+
+            vtkNew<vtkCylinderSource> cylinder;
+            vtkNew<vtkTransform> transform;
+            vtkNew<vtkTransformFilter> transformFilter;
+            vtkNew<vtkAppendFilter> appendFilter;
+            vtkNew<vtkUnstructuredGrid> unstructuredGrid;
+            vtkNew<vtkXMLUnstructuredGridWriter> writer2;
+
+            cylinder->SetResolution(33);
+            cylinder->SetRadius(IndDiameter/2.f);
+            cylinder->SetHeight(GridZ*cellsize);
+
+            double indenter_z = GridZ * cellsize/2;
+            cylinder->SetCenter(indenter_x, indenter_z, -indenter_y);
+            cylinder->Update();
+
+            transform->RotateX(90);
+            transformFilter->SetTransform(transform);
+            transformFilter->SetInputConnection(cylinder->GetOutputPort());
+            transformFilter->Update();
+
+            appendFilter->SetInputConnection(transformFilter->GetOutputPort());
+            appendFilter->Update();
+
+            unstructuredGrid->ShallowCopy(appendFilter->GetOutput());
+
+            // Write the unstructured grid.
+            writer2->SetFileName(savePath.c_str());
+            writer2->SetInputData(unstructuredGrid);
+            writer2->Write();
+        }
+
+        // export "tekscan" grid
+        {
+            vtkNew<vtkPoints> grid_points;
+            vtkNew<vtkStructuredGrid> structuredGrid;
+
+            double h = cellsize;
+            double hsq = h*h;
+            int indenter_blocks = (int)((IceBlockDimZ/h)*0.8+GridZ*0.2);
+            int fromZ = (GridZ-indenter_blocks)/2;
+
+            int nx = indenter_blocks+1;
+            int ny = n_indenter_subdivisions_angular*0.3+1;
+            double offset = (GridZ - nx)*h/2;
+
+            structuredGrid->SetDimensions(nx, ny, 1);
+            grid_points->SetNumberOfPoints(nx*ny);
+            for(int idx_y=0; idx_y<ny; idx_y++)
+                for(int idx_x=0; idx_x<nx; idx_x++)
+                {
+                    grid_points->SetPoint(idx_x+idx_y*nx, 0, idx_y*h, idx_x*h+offset);
+                }
+            structuredGrid->SetPoints(grid_points);
+
+            vtkNew<vtkFloatArray> values;
+            values->SetName("Pressure");
+            values->SetNumberOfValues((nx-1)*(ny-1));
+            for(int idx_y=0; idx_y<(ny-1); idx_y++)
+                for(int idx_x=0; idx_x<(nx-1); idx_x++)
+                {
+                    int idx = (idx_x+fromZ) + GridZ*(n_indenter_subdivisions_angular-idx_y-1);
+                    Eigen::Map<Vector3r> f(&indenter_force_buffer[3*idx]);
+                    values->SetValue((idx_x+idx_y*(nx-1)), f.norm()/hsq);
+                }
+
+            structuredGrid->GetCellData()->SetScalars(values);
+
+            // Write the unstructured grid.
+            snprintf(fileName, sizeof(fileName), "t_%05d.vts", frame);
+            std::string savePath = dir_tekscan + "/" + fileName;
+            spdlog::info("writing vts file for tekscan-like grid {}", savePath);
+
+            vtkNew<vtkXMLStructuredGridWriter> writer3;
+            writer3->SetFileName(savePath.c_str());
+            writer3->SetInputData(structuredGrid);
+            writer3->Write();
+        }
+    }
+
+    // write CSV
+    spdlog::info("saving indenter_force");
+    std::ofstream ofs("indenter_force.csv", std::ofstream::out | std::ofstream::trunc);
+    ofs << "t,F_total,fx,fy\n";
+    for(int i=0;i<indenter_force_history.size();i++)
+    {
+        auto [v, t] = indenter_force_history[i];
+        ofs << t << ',' << v.norm() << ',' << v[0] << ',' << v[1] << '\n';
+    }
+    ofs.close();
+    spdlog::info("success");
 }
 

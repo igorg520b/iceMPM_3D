@@ -357,9 +357,9 @@ __global__ void kernel_p2g()
         }
     }
 
-    char* ptr_intact = (char*)(&buffer[pitch*icy::SimParams3D::idx_intact]);
-    char q = ptr_intact[pt_idx];
-    real Jp_inv = buffer[pt_idx + pitch*icy::SimParams3D::idx_Jp_inv];
+//    char* ptr_intact = (char*)(&buffer[pitch*icy::SimParams3D::idx_intact]);
+//    char q = ptr_intact[pt_idx];
+//    real Jp_inv = buffer[pt_idx + pitch*icy::SimParams3D::idx_Jp_inv];
 
     Matrix3r PFt = KirchhoffStress_Wolper(Fe);
     Matrix3r subterm2 = particle_mass*Bp - (dt*vol*Dinv)*PFt;

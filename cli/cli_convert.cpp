@@ -52,7 +52,6 @@ void convert_to_bgeo_vtp(std::string directory, bool export_vtp, bool export_bge
     int frame = 1;
     std::string filePath;
     char fileName[20];
-
     snprintf(fileName, sizeof(fileName), "v%05d.h5", frame);
     filePath = directory + "/" + fileName;
 
@@ -75,16 +74,16 @@ void convert_to_bgeo_vtp(std::string directory, bool export_vtp, bool export_bge
         // read some parameters that are saved as attributes on the indenter dataset
         H5::Attribute att_indenter_x = dataset_indenter.openAttribute("indenter_x");
         H5::Attribute att_indenter_y = dataset_indenter.openAttribute("indenter_y");
-        att_indenter_x.read(H5::PredType::NATIVE_INT, &indenter_x);
-        att_indenter_y.read(H5::PredType::NATIVE_INT, &indenter_y);
+        att_indenter_x.read(H5::PredType::NATIVE_DOUBLE, &indenter_x);
+        att_indenter_y.read(H5::PredType::NATIVE_DOUBLE, &indenter_y);
 
-        if(current_frame.size()==0)
+        if(frame==1)
         {
             // some attributes are available only in the first frame
-            H5::Attribute att_GridZ = dataset_indenter.openAttribute("GridZ");
             H5::Attribute att_nPts = dataset_indenter.openAttribute("nPts");
             H5::Attribute att_UpdateEveryNthStep = dataset_indenter.openAttribute("UpdateEveryNthStep");
             H5::Attribute att_n_indenter_subdivisions_angular = dataset_indenter.openAttribute("n_indenter_subdivisions_angular");
+            H5::Attribute att_GridZ = dataset_indenter.openAttribute("GridZ");
 
             att_GridZ.read(H5::PredType::NATIVE_INT, &GridZ);
             att_nPts.read(H5::PredType::NATIVE_INT, &nPts);
@@ -96,10 +95,10 @@ void convert_to_bgeo_vtp(std::string directory, bool export_vtp, bool export_bge
             H5::Attribute att_IndDiameter = dataset_indenter.openAttribute("IndDiameter");
             H5::Attribute att_InitialTimeStep = dataset_indenter.openAttribute("InitialTimeStep");
 
-            att_cellsize.read(H5::PredType::NATIVE_DOUBLE, &GridZ);
+            att_cellsize.read(H5::PredType::NATIVE_DOUBLE, &cellsize);
             att_IceBlockDimZ.read(H5::PredType::NATIVE_DOUBLE, &IceBlockDimZ);
             att_IndDiameter.read(H5::PredType::NATIVE_DOUBLE, &IndDiameter);
-            att_InitialTimeStep.read(H5::PredType::NATIVE_DOUBLE, &GridZ);
+            att_InitialTimeStep.read(H5::PredType::NATIVE_DOUBLE, &InitialTimeStep);
 
             indenter_array_size = 3*GridZ*n_indenter_subdivisions_angular;
         }
@@ -239,12 +238,13 @@ void export_indenter_f(int frame, std::vector<icy::SnapshotManager::VisualPoint>
     int ny = n_indenter_subdivisions_angular*0.3+1;
     double offset = (GridZ - nx)*h/2;
 
-        structuredGrid->SetDimensions(nx, ny, 1);
+    structuredGrid->SetDimensions(nx, ny, 1);
     grid_points->SetNumberOfPoints(nx*ny);
     for(int idx_y=0; idx_y<ny; idx_y++)
         for(int idx_x=0; idx_x<nx; idx_x++)
         {
-            grid_points->SetPoint(idx_x+idx_y*nx, idx_x*h, 0, idx_y*h+offset);
+            grid_points->SetPoint(idx_x+idx_y*nx,
+                                  0, idx_y*h, idx_x*h+offset);
         }
     structuredGrid->SetPoints(grid_points);
 

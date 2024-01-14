@@ -15,7 +15,7 @@ public:
     icy::Model3D *model;
     bool previous_frame_exists = false;     // false when starting/restarting the simulation
     std::string path;
-    bool export_vtp, export_h5, export_force;
+    bool export_h5_raw = false;
 
     void ReadRawPoints(std::string fileName);
     static std::vector<std::array<float, 3>> GenerateBlock(float dx, float dy, float dz, int n);
@@ -36,15 +36,19 @@ public:
         Eigen::Vector3f vel() {return Eigen::Vector3f(v[0],v[1],v[2]);}
     };
 
+    static void H5Raw_to_Paraview(std::string directory);
+
 private:
     const std::string dir_vtp = "output_vtp";
     const std::string dir_indenter = "output_indenter";
     const std::string dir_points_h5 = "output_h5";
+    const std::string dir_h5_raw = "raw_h5";
 
     std::vector<VisualPoint> current_frame, saved_frame;
     std::vector<int> last_refresh_frame;
 
     void ExportPointsAsH5();
+    void ExportPointsAsH5_Raw();
     void PopulateVisualPoint(VisualPoint &vp, int idx);
 };
 

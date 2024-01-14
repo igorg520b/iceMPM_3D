@@ -21,30 +21,33 @@ else()
     find_package(spdlog REQUIRED)
 endif()
 
+find_package(VTK 9.1 HINTS "C:\\libraries\\vtk-build\\lib\\cmake\\vtk-9.1" REQUIRED COMPONENTS
+  CommonColor
+  CommonCore
+  FiltersCore
+  FiltersSources
+  FiltersGeometry
+  FiltersGeneral
+  FiltersModeling
+  InteractionStyle
+  RenderingContextOpenGL2
+  RenderingCore
+  RenderingFreeType
+  RenderingGL2PSOpenGL2
+  RenderingOpenGL2
+  IOGeometry
+  RenderingAnnotation
+  RenderingLabel
+  IOImage
+  IOXML
+  ViewsQt
+  CommonDataModel
+  CommonTransforms
+)
+
+
+#[[
 # Qt GUI executable
-    find_package(VTK 9.1 HINTS "C:\\libraries\\vtk-build\\lib\\cmake\\vtk-9.1" REQUIRED COMPONENTS
-      CommonColor
-      CommonCore
-      FiltersCore
-      FiltersSources
-      FiltersGeometry
-      FiltersGeneral
-      FiltersModeling
-      InteractionStyle
-      RenderingContextOpenGL2
-      RenderingCore
-      RenderingFreeType
-      RenderingGL2PSOpenGL2
-      RenderingOpenGL2
-      IOGeometry
-      RenderingAnnotation
-      RenderingLabel
-      IOImage
-      IOXML
-      ViewsQt
-      CommonDataModel
-      CommonTransforms
-    )
     find_package(Qt5 COMPONENTS Widgets REQUIRED)
     add_compile_definitions(QT_NO_KEYWORDS)
 
@@ -133,18 +136,19 @@ endif()
 
 
     # OpenMP
-#[[    if(WIN32)
+        if(WIN32)
         target_compile_options(iceMPM_GUI_3D PRIVATE /openmp)
     else()
         target_compile_options(iceMPM_GUI_3D PRIVATE -fopenmp -Wno-stringop-overflow -Wno-invalid-offsetof)
         target_link_libraries(iceMPM_GUI_3D PRIVATE gomp)
     endif()
-]]
 
+    vtk_module_autoinit(
+      TARGETS iceMPM_GUI_3D
+      MODULES ${VTK_LIBRARIES}
+    )
 
-
-
-
+]]#
 
 # CLI version
 
@@ -208,8 +212,20 @@ endif()
 target_link_libraries(cm PRIVATE /usr/local/lib/libpartio.so.1)
 target_include_directories(cm PRIVATE /home/s2/Projects-Libraries/partio/src/lib/)
 
+
+# OpenMP
+    if(WIN32)
+    target_compile_options(cm PRIVATE /openmp)
+else()
+    target_compile_options(cm PRIVATE -fopenmp -Wno-stringop-overflow -Wno-invalid-offsetof)
+    target_link_libraries(cm PRIVATE gomp)
+endif()
+
+
+
+
 vtk_module_autoinit(
-  TARGETS iceMPM_GUI_3D cm
+  TARGETS cm
   MODULES ${VTK_LIBRARIES}
 )
 
