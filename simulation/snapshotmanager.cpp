@@ -607,7 +607,6 @@ void icy::SnapshotManager::H5Raw_to_Paraview(std::string path)
             // Write the unstructured grid.
             snprintf(fileName, sizeof(fileName), "t_%05d.vts", frame);
             std::string savePath = dir_tekscan + "/" + fileName;
-            spdlog::info("writing vts file for tekscan-like grid {}", savePath);
 
             vtkNew<vtkXMLStructuredGridWriter> writer3;
             writer3->SetFileName(savePath.c_str());
