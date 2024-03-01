@@ -429,7 +429,7 @@ void icy::SnapshotManager::H5Raw_to_Paraview(std::string path)
     if(!std::filesystem::is_directory(od_tekscan) || !std::filesystem::exists(od_tekscan)) std::filesystem::create_directory(od_tekscan);
 
 #pragma omp parallel for num_threads(3)
-    for(int frame=1; frame<lastidx; frame++)
+    for(int frame=1; frame<=lastidx; frame++)
     {
         int n_indenter_subdivisions_angular, GridZ, nPts, UpdateEveryNthStep, indenter_array_size;
         double indenter_x, indenter_y;
