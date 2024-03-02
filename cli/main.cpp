@@ -13,10 +13,6 @@
 
 #include <omp.h>
 
-
-void generate_block(float bx, float by, float bz, int n, std::string fileName);
-void generate_cone(float diameter, float top, float angle, float height, int n, std::string fileName);
-
 void start_simulation_from_json(std::string jsonFile, bool export_vtp, bool export_h5_raw);
 void resume_simulation_from_snapshot(std::string snapshotFile, bool export_vtp, bool export_h5_raw);
 void convert_to_bgeo_vtp(std::string directory, bool vtp, bool bgeo, bool export_indenter);
@@ -62,29 +58,7 @@ int main(int argc, char** argv)
 
     auto option_parse_result = options.parse(argc, argv);
 
-    if(option_parse_result.count("generate"))
-    {
-        // generate points input file
-        std::string output_file = option_parse_result["output"].as<std::string>();
-        int n = option_parse_result["generate"].as<int>();
-
-        if(option_parse_result.count("cone"))
-        {
-            float diameter = option_parse_result["diameter"].as<float>();
-            float top = option_parse_result["top"].as<float>();
-            float angle = option_parse_result["angle"].as<float>();
-            float height = option_parse_result["height"].as<float>();
-            generate_cone(diameter, top, angle, height, n, output_file);
-        }
-        else
-        {
-            float bx = option_parse_result["bx"].as<float>();
-            float by = option_parse_result["by"].as<float>();
-            float bz = option_parse_result["bz"].as<float>();
-            generate_block(bx, by, bz, n, output_file);
-        }
-    }
-    else if(option_parse_result.count("convert"))
+    if(option_parse_result.count("convert"))
     {
         // convert to BGEO/VTP
         std::string input_directory = option_parse_result["convert"].as<std::string>();

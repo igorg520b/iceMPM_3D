@@ -42,7 +42,6 @@
     </property>
     <addaction name="action_camera_reset"/>
     <addaction name="separator"/>
-    <addaction name="actionSave_Binary_Data"/>
    </widget>
    <widget class="QMenu" name="menuSimulation">
     <property name="title">
@@ -142,14 +141,6 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+L</string>
-   </property>
-  </action>
-  <action name="actionSave_Binary_Data">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>Save Binary Data</string>
    </property>
   </action>
   <action name="actionSave_Snapshot_As">

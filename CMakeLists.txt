@@ -46,7 +46,7 @@ find_package(VTK 9.1 HINTS "C:\\libraries\\vtk-build\\lib\\cmake\\vtk-9.1" REQUI
 )
 
 
-#[[
+
 # Qt GUI executable
     find_package(Qt5 COMPONENTS Widgets REQUIRED)
     add_compile_definitions(QT_NO_KEYWORDS)
@@ -148,13 +148,12 @@ find_package(VTK 9.1 HINTS "C:\\libraries\\vtk-build\\lib\\cmake\\vtk-9.1" REQUI
       MODULES ${VTK_LIBRARIES}
     )
 
-]]#
+
 
 # CLI version
 
 add_executable(cm
     cli/main.cpp
-    cli/cli_generate.cpp
     cli/cli_convert.cpp
     cli/cli_simulate.cpp
 
@@ -182,7 +181,7 @@ add_executable(cm
 set_target_properties(cm PROPERTIES CUDA_ARCHITECTURES "89")
 set_target_properties(cm PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 
-target_include_directories(cm PRIVATE cli simulation libraries/thinks/poisson_disk_sampling/)
+target_include_directories(cm PRIVATE cli simulation)
 
 # Eigen
 target_link_libraries(cm PRIVATE Eigen3::Eigen)

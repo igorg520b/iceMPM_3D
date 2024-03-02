@@ -5,7 +5,6 @@
 
 #include <spdlog/spdlog.h>
 #include <H5Cpp.h>
-#include "poisson_disk_sampling.h"
 
 #include <filesystem>
 #include <string>
@@ -134,28 +133,71 @@ void icy::SnapshotManager::ReadRawPoints(std::string fileName)
     std::vector<std::array<float, 3>> buffer;
     buffer.resize(nPoints);
     dataset.read(buffer.data(), H5::PredType::NATIVE_FLOAT);
+
+    std::vector<short> grainIDs(nPoints);
+    H5::DataSet dataset_grains = file.openDataSet("GrainIDs");
+    dataset_grains.read(grainIDs.data(), H5::PredType::NATIVE_INT16);
+
+    H5::Attribute att_volume = dataset_grains.openAttribute("volume");
+    att_volume.read(H5::PredType::NATIVE_FLOAT, &model->prms.Volume);
     file.close();
+
+    auto result = std::minmax_element(buffer.begin(),buffer.end(), [](std::array<float, 3> &p1, std::array<float, 3> &p2){
+        return p1[0]<p2[0];});
+    const float length = (*result.second)[0]-(*result.first)[0];
+
+    result = std::minmax_element(buffer.begin(),buffer.end(), [](std::array<float, 3> &p1, std::array<float, 3> &p2){
+        return p1[1]<p2[1];});
+    const float top = (*result.second)[1];
+
+    result = std::minmax_element(buffer.begin(),buffer.end(), [](std::array<float, 3> &p1, std::array<float, 3> &p2){
+        return p1[2]<p2[2];});
+    const float width = (*result.second)[2]-(*result.first)[2];
+
+
+
+
+    spdlog::info("point cloud length {}; width {}; volume {}", length, width, model->prms.Volume);
+
+
 
     model->gpu.cuda_allocate_arrays(model->prms.GridTotal, nPoints);
 
     const real &h = model->prms.cellsize;
-    const real &bz = model->prms.IceBlockDimZ;
     const real box_z = model->prms.GridZ*h;
+    const real box_x = model->prms.GridX*h;
 
-    const real z_offset = (box_z - bz)/2;
+    const real z_offset = (box_z - width)/2;
+    const real x_offset = (box_x - length)/2;
+    const real y_offset = 2*h;
 
-    model->prms.ParticleVolume = model->prms.bvol()/nPoints;
+    const real block_left = x_offset;
+    const real block_top = top + y_offset;
+
+    const real r = model->prms.IndDiameter/2;
+    const real ht = r - model->prms.IndDepth;
+    const real x_ind_offset = sqrt(r*r - ht*ht);
+
+    // set initial indenter position
+    model->prms.indenter_x = ceil((block_left-x_ind_offset)/h)*h;
+    model->prms.indenter_y = block_top + ht;
+
+    model->prms.indenter_x_initial = model->prms.indenter_x;
+    model->prms.indenter_y_initial = model->prms.indenter_y;
+
+    model->prms.ParticleVolume = model->prms.Volume/nPoints;
     model->prms.ParticleMass = model->prms.ParticleVolume * model->prms.Density;
 
     for(int k=0; k<nPoints; k++)
     {
         Point3D p;
         p.Reset();
-        buffer[k][0] += (model->prms.BlockOffsetX+5)*h;
-        buffer[k][1] += 2*h;
+        buffer[k][0] += x_offset;
+        buffer[k][1] += y_offset;
         buffer[k][2] += z_offset; // center
         for(int i=0;i<3;i++) p.pos[i] = buffer[k][i];
         p.pos_initial = p.pos;
+        p.grain = grainIDs[k];
         p.TransferToBuffer(model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, k);
     }
     spdlog::info("raw points loaded");
@@ -165,17 +207,7 @@ void icy::SnapshotManager::ReadRawPoints(std::string fileName)
     model->Prepare();
 }
 
-std::vector<std::array<float, 3>> icy::SnapshotManager::GenerateBlock(float bx, float by, float bz, int n)
-{
-    constexpr float magic_constant = 0.58;
-    const float bvol = bx*by*bz;
-    const float kRadius = cbrt(magic_constant*bvol/n);
 
-    const std::array<float, 3>kXMin{0, 0, 0};
-    const std::array<float, 3>kXMax{bx, by, bz};
-    std::vector<std::array<float, 3>> prresult = thinks::PoissonDiskSampling(kRadius, kXMin, kXMax);
-    return prresult;
-}
 
 void icy::SnapshotManager::PopulateVisualPoint(VisualPoint &vp, int idx)
 {

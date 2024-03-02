@@ -76,7 +76,9 @@ public:
     int SimulationStep;
     real SimulationTime;
 
-    real indenter_x, indenter_x_initial, indenter_y;
+    real indenter_x, indenter_y, indenter_x_initial, indenter_y_initial;
+    real Volume;
+    bool ConeSetup;
 
     void Reset();
     std::string ParseFile(std::string fileName);
@@ -84,7 +86,6 @@ public:
     void ComputeLame();
     void ComputeCamClayParams2();
     void ComputeHelperVariables();
-    real bvol() {return IceBlockDimX*IceBlockDimY*IceBlockDimZ;}
 
     int AnimationFrameNumber() { return SimulationStep / UpdateEveryNthStep;}
 };

@@ -75,7 +75,6 @@ private Q_SLOTS:
     void open_snapshot_triggered();
     void simulation_start_pause(bool checked);
     void load_parameter_triggered();
-    void export_binary_data_triggered(bool checked);
     void save_snapshot_triggered();
 
     void comboboxIndexChanged_visualizations(int index);

@@ -61,8 +61,6 @@ void icy::Model3D::UnlockCycleMutex()
 
 void icy::Model3D::Reset()
 {
-    const real &by = prms.IceBlockDimY;
-    const real &h = prms.cellsize;
 
     // this should be called after prms are set as desired (either via GUI or CLI)
     spdlog::info("icy::Model::Reset()");
@@ -71,8 +69,10 @@ void icy::Model3D::Reset()
     prms.SimulationTime = 0;
     compute_time_per_cycle = 0;
 
-    prms.indenter_y = by + 2*h + prms.IndDiameter/2 - prms.IndDepth;
-    prms.indenter_x = prms.indenter_x_initial = (prms.BlockOffsetX+4)*h - prms.IndDiameter/2;
+    //    const real &by = prms.IceBlockDimY;
+    //   const real &h = prms.cellsize;
+//    prms.indenter_y = by + 2*h + prms.IndDiameter/2 - prms.IndDepth;
+//    prms.indenter_x = prms.indenter_x_initial = (prms.BlockOffsetX+4)*h - prms.IndDiameter/2;
 
     gpu.indenter_force_history.clear();
 

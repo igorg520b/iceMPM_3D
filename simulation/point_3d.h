@@ -18,6 +18,7 @@ struct icy::Point3D
     real Jp_inv; // track the change in det(Fp)
 
     Vector3r pos_initial; // for resetting
+    short grain;
     char q;
 
     void Reset();
@@ -29,6 +30,7 @@ struct icy::Point3D
     static char getQ(const real *buffer, const int pitch, const int point_index);
     static double getJp_inv(const real *buffer, const int pitch, const int point_index);
     static void setPos_Q_Jpinv(Eigen::Vector3f _pos, float _Jp_inv, real *buff, const int pitch, const int pt_idx);
+    static short getGrain(const real *buffer, const int pitch, const int point_index);
 };
 
 

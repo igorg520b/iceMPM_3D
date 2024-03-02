@@ -21,6 +21,9 @@ void icy::Point3D::TransferToBuffer(real *buffer, const int pitch, const int poi
     char* ptr_intact = (char*)(&buffer[pitch*icy::SimParams3D::idx_intact]);
     ptr_intact[point_index] = q;
 
+    short* ptr_grain = (short*)(&ptr_intact[pitch]);
+    ptr_grain[point_index] = grain;
+
     buffer[point_index + pitch*icy::SimParams3D::idx_Jp_inv] = Jp_inv;
 
     for(int i=0; i<3; i++)
@@ -44,10 +47,23 @@ void icy::Point3D::setPos_Q_Jpinv(Eigen::Vector3f _pos, float _Jp_inv,
 }
 
 
+short icy::Point3D::getGrain(const real *buffer, const int pitch, const int point_index)
+{
+    char* ptr_intact = (char*)(&buffer[pitch*icy::SimParams3D::idx_intact]);
+    short* ptr_grain = (short*)(&ptr_intact[pitch]);
+    short grain = ptr_grain[point_index];
+    return grain;
+}
+
+
 void icy::Point3D::PullFromBuffer(const real *buffer, const int pitch, const int point_index)
 {
     char* ptr_intact = (char*)(&buffer[pitch*icy::SimParams3D::idx_intact]);
     q = ptr_intact[point_index];
+
+    short* ptr_grain = (short*)(&ptr_intact[pitch]);
+    grain = ptr_grain[point_index];
+
     Jp_inv = buffer[point_index + pitch*icy::SimParams3D::idx_Jp_inv];
 
     for(int i=0; i<3; i++)

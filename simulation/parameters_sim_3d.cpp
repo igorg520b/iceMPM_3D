@@ -48,7 +48,8 @@ void icy::SimParams3D::Reset()
     tpb_Upd = 512;
     tpb_G2P = 128;
 
-    indenter_x = indenter_x_initial = indenter_y = 0;
+    indenter_x = indenter_y = 0;
+    ConeSetup = false;
 
     ComputeLame();
     ComputeCamClayParams2();
@@ -76,6 +77,8 @@ std::string icy::SimParams3D::ParseFile(std::string fileName)
 
     if(doc.HasMember("InputRawPoints")) inputRawPoints = doc["InputRawPoints"].GetString();
     else throw std::runtime_error("raw point file should be provided");
+
+    if(doc.HasMember("Cone")) ConeSetup = doc["Cone"].GetBool();
 
     if(doc.HasMember("InitialTimeStep")) InitialTimeStep = doc["InitialTimeStep"].GetDouble();
     if(doc.HasMember("YoungsModulus")) YoungsModulus = doc["YoungsModulus"].GetDouble();

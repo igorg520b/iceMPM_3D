@@ -18,7 +18,6 @@ public:
     bool export_h5_raw = false;
 
     void ReadRawPoints(std::string fileName);
-    static std::vector<std::array<float, 3>> GenerateBlock(float dx, float dy, float dz, int n);
 
     void SaveFullSnapshot(std::string fileName);
     void ReadFullSnapshot(std::string fileName);

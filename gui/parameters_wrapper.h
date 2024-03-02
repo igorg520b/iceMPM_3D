@@ -138,6 +138,10 @@ class ParamsWrapper : public QObject
     void set_tpb_G2P(int val) { prms->tpb_G2P = val; }
 
 
+    Q_PROPERTY(bool cone READ get_Cone NOTIFY propertyChanged)
+    bool get_Cone() {return prms->ConeSetup;}
+
+
 public:
     ParamsWrapper(icy::SimParams3D *p)
     {

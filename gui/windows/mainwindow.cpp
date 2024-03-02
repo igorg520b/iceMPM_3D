@@ -92,7 +92,6 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionOpen, &QAction::triggered, this, &MainWindow::open_snapshot_triggered);
     connect(ui->actionStart_Pause, &QAction::triggered, this, &MainWindow::simulation_start_pause);
     connect(ui->actionLoad_Parameters, &QAction::triggered, this, &MainWindow::load_parameter_triggered);
-    connect(ui->actionSave_Binary_Data, &QAction::triggered, this, &MainWindow::export_binary_data_triggered);
     connect(ui->actionSave_Snapshot_As, &QAction::triggered, this, &MainWindow::save_snapshot_triggered);
 
     connect(qdsbValRange,QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MainWindow::limits_changed);
@@ -134,7 +133,6 @@ void MainWindow::quit_triggered()
     settings.setValue("visualization_ranges", ranges);
 
     settings.setValue("vis_option", comboBox_visualizations->currentIndex());
-    settings.setValue("save_binary_data", ui->actionSave_Binary_Data->isChecked());
 
     QList<int> szs = splitter->sizes();
     settings.setValue("splitter_size_0", szs[0]);
@@ -173,12 +171,6 @@ void MainWindow::restore_settings()
         }
 
         comboBox_visualizations->setCurrentIndex(settings.value("vis_option").toInt());
-
-        var = settings.value("save_binary_data");
-        if(!var.isNull()) {
-            ui->actionSave_Binary_Data->setChecked(var.toBool());
-            export_binary_data_triggered(var.toBool());
-        }
 
         var = settings.value("splitter_size_0");
         if(!var.isNull())
@@ -330,10 +322,4 @@ void MainWindow::load_parameter_triggered()
 }
 
 
-void MainWindow::export_binary_data_triggered(bool checked)
-{
-    snapshot.export_vtp = checked;
-    snapshot.export_force = checked;
-    snapshot.export_h5 = checked;
-}
 

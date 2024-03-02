@@ -200,6 +200,24 @@ void icy::VisualRepresentation::SynchronizeValues()
                                         icy::Point3D::getJp_inv(model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, i)-1);
         visualized_values->Modified();
     }
+    else if(VisualizingVariable == VisOpt::grains)
+    {
+        scalarBar->VisibilityOn();
+        points_polydata->GetPointData()->AddArray(visualized_values);
+        points_polydata->GetPointData()->SetActiveScalars("visualized_values");
+        points_mapper->ScalarVisibilityOn();
+        points_mapper->SetColorModeToMapScalars();
+        points_mapper->UseLookupTableScalarRangeOn();
+        points_mapper->SetLookupTable(hueLut_pastel);
+        scalarBar->SetLookupTable(hueLut_pastel);
+        lutMPM->SetTableRange(0,39);
+
+        visualized_values->SetNumberOfValues(model->prms.nPts);
+        for(int i=0;i<model->prms.nPts;i++)
+            visualized_values->SetValue((vtkIdType)i,
+                                        icy::Point3D::getGrain(model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, i)%40);
+        visualized_values->Modified();
+    }
 
     double indenter_x = model->prms.indenter_x;
     double indenter_y = model->prms.indenter_y;
