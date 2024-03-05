@@ -3,7 +3,7 @@ Implementation of the Material Point Method for modeling ice
 
 ![Screenshot of the GUI version](/screenshot.png)
 
-##Required libraries:
+## Required libraries:
 
 > libeigen3-dev libspdlog-dev libcxxopts-dev rapidjson-dev libhdf5-dev libvtk9-dev
 
@@ -17,7 +17,7 @@ If the output was saved in "raw" format (--export-raw), then the frames can be c
 
 > cm --convert-parallel default_output/output_raw_h5 -v -i
 
-##Input files
+## Input files
 
 A simulation can be started with a JSON configuration file via:
 
