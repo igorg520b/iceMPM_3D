@@ -77,7 +77,7 @@ find_package(VTK 9.1 HINTS "C:\\libraries\\vtk-build\\lib\\cmake\\vtk-9.1" REQUI
         simulation/point_3d.cpp
 
 	# cuda
-        simulation/givens.cuh
+
         simulation/helper_math.cuh
         simulation/gpu_implementation4.h
         simulation/gpu_implementation4.cu
@@ -166,7 +166,6 @@ add_executable(cm
     simulation/point_3d.cpp
 
     # cuda
-    simulation/givens.cuh
     simulation/helper_math.cuh
     simulation/gpu_implementation4.h
     simulation/gpu_implementation4.cu

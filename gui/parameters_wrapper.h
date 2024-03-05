@@ -85,6 +85,10 @@ class ParamsWrapper : public QObject
     Q_PROPERTY(int PtActual READ getPointCountActual NOTIFY propertyChanged)
     int getPointCountActual() {return prms->nPts;}
 
+    Q_PROPERTY(double PtsPerCell READ getPointsPerCell NOTIFY propertyChanged)
+    double getPointsPerCell() {return prms->PointsPerCell();}
+
+
     Q_PROPERTY(int PtPitch READ getPointPitch NOTIFY propertyChanged)
     int getPointPitch() {return prms->nPtsPitch;}
 
@@ -137,9 +141,8 @@ class ParamsWrapper : public QObject
     int get_tpb_G2P() {return prms->tpb_G2P;}
     void set_tpb_G2P(int val) { prms->tpb_G2P = val; }
 
-
-    Q_PROPERTY(bool cone READ get_Cone NOTIFY propertyChanged)
-    bool get_Cone() {return prms->ConeSetup;}
+    Q_PROPERTY(int SetupType READ get_SetupType NOTIFY propertyChanged)
+    bool get_SetupType() {return prms->SetupType;}
 
 
 public:

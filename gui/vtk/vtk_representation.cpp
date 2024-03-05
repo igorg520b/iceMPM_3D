@@ -71,17 +71,6 @@ icy::VisualRepresentation::VisualRepresentation()
     actor_points->PickableOff();
     actor_points->GetProperty()->SetColor(0.8, 0.4, 0.4);
 
-    grid_mapper->SetInputData(structuredGrid);
-
-    actor_grid->SetMapper(grid_mapper);
-    actor_grid->GetProperty()->SetEdgeVisibility(true);
-    actor_grid->GetProperty()->LightingOff();
-    actor_grid->GetProperty()->ShadingOff();
-    actor_grid->GetProperty()->SetInterpolationToFlat();
-    actor_grid->PickableOff();
-    actor_grid->GetProperty()->SetColor(0.05,0.05,0.05);
-    actor_grid->GetProperty()->SetRepresentationToWireframe();
-
     scalarBar->SetLookupTable(lutMPM);
     scalarBar->SetMaximumWidthInPixels(130);
     scalarBar->SetBarRatio(0.07);
@@ -103,6 +92,22 @@ icy::VisualRepresentation::VisualRepresentation()
     txtprop->SetColor(0,0,0);
     actorText->SetDisplayPosition(500, 30);
 
+    // rectangular indenter
+    mapper_rectangularIndenter->SetInputConnection(source_rectangularIndenter->GetOutputPort());
+    actor_RectangularIndenter->SetMapper(mapper_rectangularIndenter);
+    actor_RectangularIndenter->GetProperty()->SetOpacity(0.3);
+    actor_RectangularIndenter->GetProperty()->SetEdgeVisibility(true);
+    actor_RectangularIndenter->PickableOff();
+
+
+    // bounding box
+    mapper_boundingBox->SetInputConnection(source_boundingBox->GetOutputPort());
+    actor_BoundingBox->SetMapper(mapper_boundingBox);
+    actor_BoundingBox->GetProperty()->SetRepresentationToWireframe();
+    actor_BoundingBox->PickableOff();
+
+
+
     spdlog::info("VisualRepresentation constructor done");
 }
 
@@ -120,24 +125,28 @@ void icy::VisualRepresentation::SynchronizeTopology()
     real gy = model->prms.GridY*h;
     real gz = model->prms.GridZ*h;
 
-    structuredGrid->SetDimensions(2, 2, 2);
-
-    grid_points->SetNumberOfPoints(8);
-    grid_points->SetPoint(0, 0.,0.,0.);
-    grid_points->SetPoint(1, gx, 0, 0);
-    grid_points->SetPoint(2, 0, gy, 0);
-    grid_points->SetPoint(3, gx, gy, 0);
-    grid_points->SetPoint(4, 0.,0.,gz);
-    grid_points->SetPoint(5, gx, 0, gz);
-    grid_points->SetPoint(6, 0, gy, gz);
-    grid_points->SetPoint(7, gx, gy, gz);
-
-    structuredGrid->SetPoints(grid_points);
+    source_boundingBox->SetBounds(0, gx, 0, gy, 0, gz);
 
     // indenter
     indenterSource->SetRadius(model->prms.IndDiameter/2.f);
     indenterSource->SetHeight(model->prms.GridZ * model->prms.cellsize);
     indenterSource->Update();
+
+    if(model->prms.SetupType == 0)
+    {
+        actor_indenter->SetVisibility(true);
+        actor_RectangularIndenter->SetVisibility(false);
+        actor_axes->SetVisibility(true);
+    }
+    else if(model->prms.SetupType == 1)
+    {
+        actor_indenter->SetVisibility(false);
+        actor_axes->SetVisibility(false);
+        actor_RectangularIndenter->SetVisibility(true);
+
+        const double indenter_height = 0.03;
+        source_rectangularIndenter->SetBounds(0, gx, model->prms.indenter_y, model->prms.indenter_y + indenter_height, 0, gz);
+    }
 }
 
 

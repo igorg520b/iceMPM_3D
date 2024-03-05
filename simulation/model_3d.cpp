@@ -12,6 +12,8 @@ icy::Model3D::Model3D()
 };
 
 
+
+
 bool icy::Model3D::Step()
 {
     real simulation_time = prms.SimulationTime;
@@ -23,7 +25,8 @@ bool icy::Model3D::Step()
     if(prms.SimulationStep % (prms.UpdateEveryNthStep*2) == 0) cudaEventRecord(gpu.eventCycleStart);
     do
     {
-        prms.indenter_x = prms.indenter_x_initial + simulation_time*prms.IndVelocity;
+        UpdateIndenterPosition(simulation_time);
+
         gpu.cuda_reset_grid();
         gpu.cuda_p2g();
         gpu.cuda_update_nodes(prms.indenter_x, prms.indenter_y);
@@ -49,6 +52,18 @@ bool icy::Model3D::Step()
     prms.SimulationTime = simulation_time;
     prms.SimulationStep += count_unupdated_steps;
     return (prms.SimulationTime < prms.SimulationEndTime && !gpu.error_code);
+}
+
+void icy::Model3D::UpdateIndenterPosition(real simulation_time)
+{
+    if(prms.SetupType == 0)
+    {
+        prms.indenter_x = prms.indenter_x_initial + simulation_time*prms.IndVelocity;
+    }
+    else if(prms.SetupType == 1)
+    {
+        prms.indenter_y = prms.indenter_y_initial - simulation_time*prms.IndVelocity;
+    }
 }
 
 

@@ -66,10 +66,9 @@ public:
 
     real cellsize, cellsize_inv, Dp_inv;
 
-
     real IndDiameter, IndRSq, IndVelocity, IndDepth;
-    real IceBlockDimX, IceBlockDimY, IceBlockDimZ;
-    int BlockOffsetX;   // in number of grid cells
+    real xmin, xmax, ymin, ymax, zmin, zmax;            // bounding box of the material
+    int nxmin, nxmax, nymin, nymax, nzmin, nzmax;       // same, but nuber of grid cells
 
     real ParticleVolume, ParticleMass, ParticleViewSize, SphereViewSize;
 
@@ -78,7 +77,7 @@ public:
 
     real indenter_x, indenter_y, indenter_x_initial, indenter_y_initial;
     real Volume;
-    bool ConeSetup;
+    int SetupType;  // 0 - ice block horizontal indentation; 1 - cone uniaxial compression
 
     void Reset();
     std::string ParseFile(std::string fileName);
@@ -86,6 +85,8 @@ public:
     void ComputeLame();
     void ComputeCamClayParams2();
     void ComputeHelperVariables();
+    void ComputeIntegerBlockCoords();
+    double PointsPerCell(); // compute the average number of points in non-empty (!) cells
 
     int AnimationFrameNumber() { return SimulationStep / UpdateEveryNthStep;}
 };

@@ -72,11 +72,13 @@ MainWindow::MainWindow(QWidget *parent)
     ui->statusbar->addPermanentWidget(labelStepCount);
 
     renderer->AddActor(representation.actor_points);
-    renderer->AddActor(representation.actor_grid);
     renderer->AddActor(representation.actor_indenter);
     renderer->AddActor(representation.actorText);
     renderer->AddActor(representation.scalarBar);
     renderer->AddActor(representation.actor_axes);
+
+    renderer->AddActor(representation.actor_BoundingBox);
+    renderer->AddActor(representation.actor_RectangularIndenter);
 
     // populate combobox
     QMetaEnum qme = QMetaEnum::fromType<icy::VisualRepresentation::VisOpt>();

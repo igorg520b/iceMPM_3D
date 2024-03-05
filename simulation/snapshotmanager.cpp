@@ -4,7 +4,6 @@
 #include "model_3d.h"
 
 #include <spdlog/spdlog.h>
-#include <H5Cpp.h>
 
 #include <filesystem>
 #include <string>
@@ -139,29 +138,31 @@ void icy::SnapshotManager::ReadRawPoints(std::string fileName)
     dataset_grains.read(grainIDs.data(), H5::PredType::NATIVE_INT16);
 
     H5::Attribute att_volume = dataset_grains.openAttribute("volume");
-    att_volume.read(H5::PredType::NATIVE_FLOAT, &model->prms.Volume);
+    float volume;
+    att_volume.read(H5::PredType::NATIVE_FLOAT, &volume);
+    model->prms.Volume = (double)volume;
     file.close();
 
     auto result = std::minmax_element(buffer.begin(),buffer.end(), [](std::array<float, 3> &p1, std::array<float, 3> &p2){
         return p1[0]<p2[0];});
-    const float length = (*result.second)[0]-(*result.first)[0];
+    model->prms.xmin = (*result.first)[0];
+    model->prms.xmax = (*result.second)[0];
+    const float length = model->prms.xmax - model->prms.xmin;
 
     result = std::minmax_element(buffer.begin(),buffer.end(), [](std::array<float, 3> &p1, std::array<float, 3> &p2){
         return p1[1]<p2[1];});
-    const float top = (*result.second)[1];
+    model->prms.ymin = (*result.first)[1];
+    model->prms.ymax = (*result.second)[1];
 
     result = std::minmax_element(buffer.begin(),buffer.end(), [](std::array<float, 3> &p1, std::array<float, 3> &p2){
         return p1[2]<p2[2];});
-    const float width = (*result.second)[2]-(*result.first)[2];
-
-
-
+    model->prms.zmin = (*result.first)[2];
+    model->prms.zmax = (*result.second)[2];
+    const float width = model->prms.zmax - model->prms.zmin;
+    model->prms.ComputeIntegerBlockCoords();
 
     spdlog::info("point cloud length {}; width {}; volume {}", length, width, model->prms.Volume);
 
-
-
-    model->gpu.cuda_allocate_arrays(model->prms.GridTotal, nPoints);
 
     const real &h = model->prms.cellsize;
     const real box_z = model->prms.GridZ*h;
@@ -172,15 +173,18 @@ void icy::SnapshotManager::ReadRawPoints(std::string fileName)
     const real y_offset = 2*h;
 
     const real block_left = x_offset;
-    const real block_top = top + y_offset;
+    const real block_top = model->prms.ymax + y_offset;
 
     const real r = model->prms.IndDiameter/2;
     const real ht = r - model->prms.IndDepth;
     const real x_ind_offset = sqrt(r*r - ht*ht);
 
     // set initial indenter position
-    model->prms.indenter_x = ceil((block_left-x_ind_offset)/h)*h;
-    model->prms.indenter_y = block_top + ht;
+    model->prms.indenter_x = floor((block_left-x_ind_offset)/h)*h;
+    if(model->prms.SetupType == 0)
+        model->prms.indenter_y = block_top + ht;
+    else if(model->prms.SetupType == 1)
+        model->prms.indenter_y = ceil(block_top/h)*h;
 
     model->prms.indenter_x_initial = model->prms.indenter_x;
     model->prms.indenter_y_initial = model->prms.indenter_y;
@@ -188,6 +192,7 @@ void icy::SnapshotManager::ReadRawPoints(std::string fileName)
     model->prms.ParticleVolume = model->prms.Volume/nPoints;
     model->prms.ParticleMass = model->prms.ParticleVolume * model->prms.Density;
 
+    model->gpu.cuda_allocate_arrays(model->prms.GridTotal, nPoints);
     for(int k=0; k<nPoints; k++)
     {
         Point3D p;
@@ -206,8 +211,6 @@ void icy::SnapshotManager::ReadRawPoints(std::string fileName)
     model->Reset();
     model->Prepare();
 }
-
-
 
 void icy::SnapshotManager::PopulateVisualPoint(VisualPoint &vp, int idx)
 {
@@ -230,6 +233,43 @@ void icy::SnapshotManager::AllocateMemoryForFrames()
     last_refresh_frame.resize(n);
     previous_frame_exists = false;
 }
+
+
+void icy::SnapshotManager::SaveParametersAsAttributes(H5::DataSet &dataset)
+{
+    hsize_t att_dim = 1;
+    H5::DataSpace att_dspace(1, &att_dim);
+    H5::Attribute att_indenter_x = dataset.createAttribute("indenter_x", H5::PredType::NATIVE_DOUBLE, att_dspace);
+    H5::Attribute att_indenter_y = dataset.createAttribute("indenter_y", H5::PredType::NATIVE_DOUBLE, att_dspace);
+    H5::Attribute att_SimulationTime = dataset.createAttribute("SimulationTime", H5::PredType::NATIVE_DOUBLE, att_dspace);
+    H5::Attribute att_GridZ = dataset.createAttribute("GridZ", H5::PredType::NATIVE_INT, att_dspace);
+    H5::Attribute att_nPts = dataset.createAttribute("nPts", H5::PredType::NATIVE_INT, att_dspace);
+    H5::Attribute att_UpdateEveryNthStep = dataset.createAttribute("UpdateEveryNthStep", H5::PredType::NATIVE_INT, att_dspace);
+    H5::Attribute att_n_indenter_subdivisions_angular = dataset.createAttribute("n_indenter_subdivisions_angular", H5::PredType::NATIVE_INT, att_dspace);
+    H5::Attribute att_cellsize = dataset.createAttribute("cellsize", H5::PredType::NATIVE_DOUBLE, att_dspace);
+    H5::Attribute att_IndDiameter = dataset.createAttribute("IndDiameter", H5::PredType::NATIVE_DOUBLE, att_dspace);
+    H5::Attribute att_InitialTimeStep = dataset.createAttribute("InitialTimeStep", H5::PredType::NATIVE_DOUBLE, att_dspace);
+    H5::Attribute att_SetupType = dataset.createAttribute("SetupType", H5::PredType::NATIVE_INT, att_dspace);
+
+    att_indenter_x.write(H5::PredType::NATIVE_DOUBLE, &model->prms.indenter_x);
+    att_indenter_y.write(H5::PredType::NATIVE_DOUBLE, &model->prms.indenter_y);
+    att_SimulationTime.write(H5::PredType::NATIVE_DOUBLE, &model->prms.SimulationTime);
+    att_GridZ.write(H5::PredType::NATIVE_INT, &model->prms.GridZ);
+    att_nPts.write(H5::PredType::NATIVE_INT, &model->prms.nPts);
+    att_UpdateEveryNthStep.write(H5::PredType::NATIVE_INT, &model->prms.UpdateEveryNthStep);
+    att_n_indenter_subdivisions_angular.write(H5::PredType::NATIVE_INT, &model->prms.n_indenter_subdivisions_angular);
+    att_cellsize.write(H5::PredType::NATIVE_DOUBLE, &model->prms.cellsize);
+    att_IndDiameter.write(H5::PredType::NATIVE_DOUBLE, &model->prms.IndDiameter);
+    att_InitialTimeStep.write(H5::PredType::NATIVE_DOUBLE, &model->prms.InitialTimeStep);
+    att_SetupType.write(H5::PredType::NATIVE_INT, &model->prms.SetupType);
+
+    hsize_t att_dim_blockcoords = 6;
+    H5::DataSpace att_dspace_blockcoords(1, &att_dim_blockcoords);
+    H5::Attribute att_IceBlockCoords = dataset.createAttribute("IceBlockCoords", H5::PredType::NATIVE_DOUBLE, att_dspace_blockcoords);
+    double buff[6] {model->prms.xmin, model->prms.xmax, model->prms.ymin, model->prms.ymax, model->prms.zmin, model->prms.zmax};
+    att_IceBlockCoords.write(H5::PredType::NATIVE_DOUBLE, buff);
+}
+
 
 
 void icy::SnapshotManager::ExportPointsAsH5()
@@ -303,36 +343,17 @@ void icy::SnapshotManager::ExportPointsAsH5()
     dataset_indneter_force.write(model->gpu.host_side_indenter_force_accumulator, H5::PredType::NATIVE_DOUBLE);
 
     // save some additional data as attributes
-    hsize_t att_dim = 1;
-    H5::DataSpace att_dspace(1, &att_dim);
-    H5::Attribute att_indenter_x = dataset_indneter_force.createAttribute("indenter_x", H5::PredType::NATIVE_DOUBLE, att_dspace);
-    H5::Attribute att_indenter_y = dataset_indneter_force.createAttribute("indenter_y", H5::PredType::NATIVE_DOUBLE, att_dspace);
-    H5::Attribute att_SimulationTime = dataset_indneter_force.createAttribute("SimulationTime", H5::PredType::NATIVE_DOUBLE, att_dspace);
-    att_indenter_x.write(H5::PredType::NATIVE_DOUBLE, &model->prms.indenter_x);
-    att_indenter_y.write(H5::PredType::NATIVE_DOUBLE, &model->prms.indenter_y);
-    att_SimulationTime.write(H5::PredType::NATIVE_DOUBLE, &model->prms.SimulationTime);
+    SaveParametersAsAttributes(dataset_indneter_force);
 
     if(current_frame_number == 1)
     {
-        H5::Attribute att_GridZ = dataset_indneter_force.createAttribute("GridZ", H5::PredType::NATIVE_INT, att_dspace);
-        H5::Attribute att_nPts = dataset_indneter_force.createAttribute("nPts", H5::PredType::NATIVE_INT, att_dspace);
-        H5::Attribute att_UpdateEveryNthStep = dataset_indneter_force.createAttribute("UpdateEveryNthStep", H5::PredType::NATIVE_INT, att_dspace);
-        H5::Attribute att_n_indenter_subdivisions_angular = dataset_indneter_force.createAttribute("n_indenter_subdivisions_angular", H5::PredType::NATIVE_INT, att_dspace);
-
-        att_GridZ.write(H5::PredType::NATIVE_INT, &model->prms.GridZ);
-        att_nPts.write(H5::PredType::NATIVE_INT, &model->prms.nPts);
-        att_UpdateEveryNthStep.write(H5::PredType::NATIVE_INT, &model->prms.UpdateEveryNthStep);
-        att_n_indenter_subdivisions_angular.write(H5::PredType::NATIVE_INT, &model->prms.n_indenter_subdivisions_angular);
-
-        H5::Attribute att_cellsize = dataset_indneter_force.createAttribute("cellsize", H5::PredType::NATIVE_DOUBLE, att_dspace);
-        H5::Attribute att_IceBlockDimZ = dataset_indneter_force.createAttribute("IceBlockDimZ", H5::PredType::NATIVE_DOUBLE, att_dspace);
-        H5::Attribute att_IndDiameter = dataset_indneter_force.createAttribute("IndDiameter", H5::PredType::NATIVE_DOUBLE, att_dspace);
-        H5::Attribute att_InitialTimeStep = dataset_indneter_force.createAttribute("InitialTimeStep", H5::PredType::NATIVE_DOUBLE, att_dspace);
-
-        att_cellsize.write(H5::PredType::NATIVE_DOUBLE, &model->prms.cellsize);
-        att_IceBlockDimZ.write(H5::PredType::NATIVE_DOUBLE, &model->prms.IceBlockDimZ);
-        att_IndDiameter.write(H5::PredType::NATIVE_DOUBLE, &model->prms.IndDiameter);
-        att_InitialTimeStep.write(H5::PredType::NATIVE_DOUBLE, &model->prms.InitialTimeStep);
+        // save grain ids
+        std::vector<short> grainIds(model->prms.nPts);
+        for(int i=0;i<model->prms.nPts;i++) grainIds[i] = icy::Point3D::getGrain(model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, i);
+        hsize_t dims_points_grains = model->prms.nPts;
+        H5::DataSpace dataspace_points_grains(1, &dims_points_grains);
+        H5::DataSet dataset_grainids = file.createDataSet("GrainIDs", H5::PredType::NATIVE_INT16, dataspace_points_grains);
+        dataset_grainids.write(grainIds.data(), H5::PredType::NATIVE_INT16);
     }
 
     hsize_t dims_points = sizeof(VisualPoint)*saved_frame.size();
@@ -381,34 +402,9 @@ void icy::SnapshotManager::ExportPointsAsH5_Raw()
     dataset_indneter_force.write(model->gpu.host_side_indenter_force_accumulator, H5::PredType::NATIVE_DOUBLE);
 
     // save some additional data as attributes
-    hsize_t att_dim = 1;
-    H5::DataSpace att_dspace(1, &att_dim);
-    H5::Attribute att_indenter_x = dataset_indneter_force.createAttribute("indenter_x", H5::PredType::NATIVE_DOUBLE, att_dspace);
-    H5::Attribute att_indenter_y = dataset_indneter_force.createAttribute("indenter_y", H5::PredType::NATIVE_DOUBLE, att_dspace);
-    H5::Attribute att_SimulationTime = dataset_indneter_force.createAttribute("SimulationTime", H5::PredType::NATIVE_DOUBLE, att_dspace);
-    att_indenter_x.write(H5::PredType::NATIVE_DOUBLE, &model->prms.indenter_x);
-    att_indenter_y.write(H5::PredType::NATIVE_DOUBLE, &model->prms.indenter_y);
-    att_SimulationTime.write(H5::PredType::NATIVE_DOUBLE, &model->prms.SimulationTime);
+    SaveParametersAsAttributes(dataset_indneter_force);
 
-    H5::Attribute att_GridZ = dataset_indneter_force.createAttribute("GridZ", H5::PredType::NATIVE_INT, att_dspace);
-    H5::Attribute att_nPts = dataset_indneter_force.createAttribute("nPts", H5::PredType::NATIVE_INT, att_dspace);
-    H5::Attribute att_UpdateEveryNthStep = dataset_indneter_force.createAttribute("UpdateEveryNthStep", H5::PredType::NATIVE_INT, att_dspace);
-    H5::Attribute att_n_indenter_subdivisions_angular = dataset_indneter_force.createAttribute("n_indenter_subdivisions_angular", H5::PredType::NATIVE_INT, att_dspace);
 
-    att_GridZ.write(H5::PredType::NATIVE_INT, &model->prms.GridZ);
-    att_nPts.write(H5::PredType::NATIVE_INT, &model->prms.nPts);
-    att_UpdateEveryNthStep.write(H5::PredType::NATIVE_INT, &model->prms.UpdateEveryNthStep);
-    att_n_indenter_subdivisions_angular.write(H5::PredType::NATIVE_INT, &model->prms.n_indenter_subdivisions_angular);
-
-    H5::Attribute att_cellsize = dataset_indneter_force.createAttribute("cellsize", H5::PredType::NATIVE_DOUBLE, att_dspace);
-    H5::Attribute att_IceBlockDimZ = dataset_indneter_force.createAttribute("IceBlockDimZ", H5::PredType::NATIVE_DOUBLE, att_dspace);
-    H5::Attribute att_IndDiameter = dataset_indneter_force.createAttribute("IndDiameter", H5::PredType::NATIVE_DOUBLE, att_dspace);
-    H5::Attribute att_InitialTimeStep = dataset_indneter_force.createAttribute("InitialTimeStep", H5::PredType::NATIVE_DOUBLE, att_dspace);
-
-    att_cellsize.write(H5::PredType::NATIVE_DOUBLE, &model->prms.cellsize);
-    att_IceBlockDimZ.write(H5::PredType::NATIVE_DOUBLE, &model->prms.IceBlockDimZ);
-    att_IndDiameter.write(H5::PredType::NATIVE_DOUBLE, &model->prms.IndDiameter);
-    att_InitialTimeStep.write(H5::PredType::NATIVE_DOUBLE, &model->prms.InitialTimeStep);
 
     // points
     hsize_t dims_points = (hsize_t)(model->prms.nPts*4);
@@ -431,6 +427,14 @@ void icy::SnapshotManager::ExportPointsAsH5_Raw()
     hsize_t block2 = model->prms.nPts;
     memspace1.selectHyperslab(H5S_SELECT_OR, &count2, &offset2, &stride2, &block2);
     dataset_points.write(model->gpu.tmp_transfer_buffer, H5::PredType::NATIVE_DOUBLE, memspace1, dataspace_points);
+
+    // save grain ids
+    std::vector<short> grainIds(model->prms.nPts);
+    for(int i=0;i<model->prms.nPts;i++) grainIds[i] = icy::Point3D::getGrain(model->gpu.tmp_transfer_buffer, model->prms.nPtsPitch, i);
+    hsize_t dims_points_grains = model->prms.nPts;
+    H5::DataSpace dataspace_points_grains(1, &dims_points_grains);
+    H5::DataSet dataset_grainids = file.createDataSet("GrainIDs", H5::PredType::NATIVE_INT16, dataspace_points_grains);
+    dataset_grainids.write(grainIds.data(), H5::PredType::NATIVE_INT16);
 
     file.close();
 }

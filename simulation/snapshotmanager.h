@@ -5,6 +5,7 @@
 #include <vector>
 #include <array>
 #include <Eigen/Core>
+#include <H5Cpp.h>
 
 namespace icy {class SnapshotManager; class Model3D;}
 
@@ -48,6 +49,8 @@ private:
 
     void ExportPointsAsH5();
     void ExportPointsAsH5_Raw();
+    void SaveParametersAsAttributes(H5::DataSet &dataset);
+
     void PopulateVisualPoint(VisualPoint &vp, int idx);
 };
 

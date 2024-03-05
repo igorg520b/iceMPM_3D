@@ -1,5 +1,5 @@
 #include "parameters_sim_3d.h"
-
+#include <spdlog/spdlog.h>
 
 
 void icy::SimParams3D::Reset()
@@ -29,11 +29,6 @@ void icy::SimParams3D::Reset()
     IndVelocity = 0.2;
     IndDepth = 0.25;//0.101;
 
-    IceBlockDimX = 2.5;
-    IceBlockDimY = 1.0;
-    IceBlockDimZ = 1.5;
-    BlockOffsetX = 20;
-
     SimulationStep = 0;
     SimulationTime = 0;
 
@@ -49,7 +44,7 @@ void icy::SimParams3D::Reset()
     tpb_G2P = 128;
 
     indenter_x = indenter_y = 0;
-    ConeSetup = false;
+    SetupType = 0;
 
     ComputeLame();
     ComputeCamClayParams2();
@@ -78,7 +73,7 @@ std::string icy::SimParams3D::ParseFile(std::string fileName)
     if(doc.HasMember("InputRawPoints")) inputRawPoints = doc["InputRawPoints"].GetString();
     else throw std::runtime_error("raw point file should be provided");
 
-    if(doc.HasMember("Cone")) ConeSetup = doc["Cone"].GetBool();
+    if(doc.HasMember("SetupType")) SetupType = doc["SetupType"].GetInt();
 
     if(doc.HasMember("InitialTimeStep")) InitialTimeStep = doc["InitialTimeStep"].GetDouble();
     if(doc.HasMember("YoungsModulus")) YoungsModulus = doc["YoungsModulus"].GetDouble();
@@ -97,11 +92,6 @@ std::string icy::SimParams3D::ParseFile(std::string fileName)
     if(doc.HasMember("IndDiameter")) IndDiameter = doc["IndDiameter"].GetDouble();
     if(doc.HasMember("IndVelocity")) IndVelocity = doc["IndVelocity"].GetDouble();
     if(doc.HasMember("IndDepth")) IndDepth = doc["IndDepth"].GetDouble();
-
-    if(doc.HasMember("IceBlockDimX")) IceBlockDimX = doc["IceBlockDimX"].GetDouble();
-    if(doc.HasMember("IceBlockDimY")) IceBlockDimY = doc["IceBlockDimY"].GetDouble();
-    if(doc.HasMember("IceBlockDimZ")) IceBlockDimZ = doc["IceBlockDimZ"].GetDouble();
-    if(doc.HasMember("BlockOffsetX")) BlockOffsetX = doc["BlockOffsetX"].GetInt();
 
     if(doc.HasMember("IceCompressiveStrength")) IceCompressiveStrength = doc["IceCompressiveStrength"].GetDouble();
     if(doc.HasMember("IceTensileStrength")) IceTensileStrength = doc["IceTensileStrength"].GetDouble();
@@ -129,6 +119,17 @@ void icy::SimParams3D::ComputeLame()
     kappa = mu*2./3. + lambda;
 }
 
+void icy::SimParams3D::ComputeIntegerBlockCoords()
+{
+    nxmin = floor(xmin/cellsize);
+    nxmax = ceil(xmax/cellsize);
+    nymin = floor(ymin/cellsize);
+    nymax = ceil(ymax/cellsize);
+    nzmin = floor(zmin/cellsize);
+    nzmax = ceil(zmax/cellsize);
+}
+
+
 void icy::SimParams3D::ComputeHelperVariables()
 {
     UpdateEveryNthStep = (int)(1.f/(200*InitialTimeStep));
@@ -155,4 +156,12 @@ void icy::SimParams3D::ComputeCamClayParams2()
     const real &p0 = IceCompressiveStrength;
     NACC_M = (2*q*sqrt(1+2*beta))/(p0*(1+beta));
     NACC_Msq = NACC_M*NACC_M;
+}
+
+double icy::SimParams3D::PointsPerCell()
+{
+    double non_empty_cells = Volume/(cellsize*cellsize*cellsize);
+    double result = nPts/non_empty_cells;
+    spdlog::info("PointsPerCell() {}; non_empty_cells {}; Volume {}; cellsize {}",result, non_empty_cells, Volume, cellsize);
+    return result;
 }

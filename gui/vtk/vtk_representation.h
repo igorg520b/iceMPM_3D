@@ -31,6 +31,7 @@
 
 #include <vtkRegularPolygonSource.h>
 #include <vtkCylinderSource.h>
+#include <vtkCubeSource.h>
 #include <vtkAxesActor.h>
 #include <vtkTransform.h>
 #include <vtkTransformFilter.h>
@@ -57,12 +58,13 @@ public:
 
     vtkNew<vtkLookupTable> hueLut, lutMPM;
     vtkNew<vtkActor> actor_points;
-    vtkNew<vtkActor> actor_grid;
     vtkNew<vtkActor> actor_indenter;
     vtkNew<vtkScalarBarActor> scalarBar;
 
     vtkNew<vtkTextActor> actorText;
     vtkNew<vtkAxesActor> actor_axes;
+
+    vtkNew<vtkActor> actor_BoundingBox, actor_RectangularIndenter;
 
 private:
     vtkNew<vtkLookupTable> hueLut_pastel, hueLut_four;
@@ -80,10 +82,9 @@ private:
     vtkNew<vtkVertexGlyphFilter> points_filter;
     vtkNew<vtkFloatArray> visualized_values;
 
-    // background grid
-    vtkNew<vtkStructuredGrid> structuredGrid;
-    vtkNew<vtkDataSetMapper> grid_mapper;
-    vtkNew<vtkPoints> grid_points;
+    // rectangular indenter and bounding box
+    vtkNew<vtkCubeSource> source_boundingBox, source_rectangularIndenter;
+    vtkNew<vtkPolyDataMapper> mapper_boundingBox, mapper_rectangularIndenter;
 
     static constexpr float lutArrayMPMColors[101][3] =
     {{0.25098, 0.556863, 0.756863}, {0.245961, 0.547294,

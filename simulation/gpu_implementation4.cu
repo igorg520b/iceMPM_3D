@@ -284,11 +284,16 @@ __forceinline__ __device__ void Wolper_Drucker_Prager(icy::Point3D &p)
             // project onto YS
             real s_hat_n_1_norm = q_n_1/coeff1;
             Matrix3r B_hat_E_new = (s_hat_n_1_norm*cbrt(Je_tr_sq)/mu)*s_hat_tr.normalized() + Matrix3r::Identity()*(SigmaSquared.trace()/d);
-            Matrix3r Sigma_new;
+
+            Eigen::Array<real,3,1> md = B_hat_E_new.diagonal().array().sqrt();
+
+/*            Matrix3r Sigma_new;
             Sigma_new << sqrt(B_hat_E_new(0,0)), 0, 0,
                 0, sqrt(B_hat_E_new(1,1)), 0,
                 0, 0, sqrt(B_hat_E_new(2,2));
             p.Fe = U*Sigma_new*V.transpose();
+*/
+            p.Fe = U * (md.matrix().asDiagonal()) * V.transpose();
             p.q = 3;
         }
     }
@@ -372,11 +377,13 @@ __global__ void kernel_p2g()
     Vector3r base_coord(i0,j0,k0);
     Vector3r f = pos*h_inv - base_coord;
 
-    Array3r arr_v0 = 1.5-f.array();
+    // pre-compute the weight function at given offsets
+    Array3r arr_v0 = 1.5 - f.array();
     Array3r arr_v1 = f.array() - 1.0;
     Array3r arr_v2 = f.array() - 0.5;
     Array3r ww[3] = {0.5*arr_v0*arr_v0, 0.75-arr_v1*arr_v1, 0.5*arr_v2*arr_v2};
 
+    // distribute point values to the grid
     for (int i=0; i<3; i++)
         for (int j=0; j<3; j++)
             for (int k=0; k<3;k++)
@@ -431,31 +438,42 @@ __global__ void kernel_update_nodes(real indenter_x, real indenter_y)
     int idx_y = (idx / gridX) % gridY;
     int idx_z = idx / (gridX*gridY);
 
-    Vector2r_ gnpos(idx_x*cellsize, idx_y*cellsize);    // position of the grid node
-    Vector2r_ n = gnpos - indCenter;    // vector pointing at the node from indenter's center
-    if(n.squaredNorm() < indRsq)
+    if(gprms.SetupType == 0)
     {
-        // grid node is inside the indenter
-        Vector3r vrel = velocity - vco;
-        Vector3r n3d(n[0],n[1],0);
-        n3d.normalize();
-        real vn = vrel.dot(n3d);   // normal component of velocity
-        if(vn < 0)
+        // cylindrical indenter for RHITA-type setup
+        Vector2r_ gnpos(idx_x*cellsize, idx_y*cellsize);    // position of the grid node
+        Vector2r_ n = gnpos - indCenter;    // vector pointing at the node from indenter's center
+        if(n.squaredNorm() < indRsq)
         {
-            Vector3r vt = vrel - n3d*vn;   // tangential portion of relative velocity
-            Vector3r prev_velocity = velocity;
-            velocity = vco + vt;// + ice_friction_coeff*vn*vt.normalized();
+            // grid node is inside the indenter
+            Vector3r vrel = velocity - vco;
+            Vector3r n3d(n[0],n[1],0);
+            n3d.normalize();
+            real vn = vrel.dot(n3d);   // normal component of velocity
+            if(vn < 0)
+            {
+                Vector3r vt = vrel - n3d*vn;   // tangential portion of relative velocity
+                Vector3r prev_velocity = velocity;
+                velocity = vco + vt;// + ice_friction_coeff*vn*vt.normalized();
 
-            // record force on the indenter
-            Vector3r force = (prev_velocity-velocity)*mass/dt;
-            double angle = atan2(n[0],n[1]);
-            angle += icy::SimParams3D::pi;
-            angle *= gprms.n_indenter_subdivisions_angular/(2*icy::SimParams3D::pi);
-            int index_angle = min(max((int)angle, 0), gprms.n_indenter_subdivisions_angular-1);
-            int index_z = min(max(idx_z,0),gridZ-1);
-            int index = index_z + index_angle*gridZ;
-            for(int i=0;i<3;i++) atomicAdd(&gprms.indenter_force_accumulator[i+3*index], force[i]);
+                // record force on the indenter
+                Vector3r force = (prev_velocity-velocity)*mass/dt;
+                double angle = atan2(n[0],n[1]);
+                angle += icy::SimParams3D::pi;
+                angle *= gprms.n_indenter_subdivisions_angular/(2*icy::SimParams3D::pi);
+                int index_angle = min(max((int)angle, 0), gprms.n_indenter_subdivisions_angular-1);
+                int index_z = min(max(idx_z,0),gridZ-1);
+                int index = index_z + index_angle*gridZ;
+                for(int i=0;i<3;i++) atomicAdd(&gprms.indenter_force_accumulator[i+3*index], force[i]);
+            }
         }
+    }
+    else if(gprms.SetupType == 1)
+    {
+        // flat indenter for vertical indentation
+        real gnpos_y = idx_y*cellsize;
+        if(gnpos_y > gprms.indenter_y && velocity[1]>-gprms.IndVelocity) velocity[1] = -gprms.IndVelocity;
+
     }
 
     // attached bottom layer and walls
@@ -467,7 +485,7 @@ __global__ void kernel_update_nodes(real indenter_x, real indenter_y)
 
     if(idx_z <= 3 && velocity[2]<0) velocity[2] = 0;
     else if(idx_z >= gridZ-4 && velocity[2]>0) velocity[2] = 0;
-
+/*
     // hold lower half of the block at boudaries
     real &hinv = gprms.cellsize_inv;
     int blocksXmin = gprms.BlockOffsetX+5;
@@ -484,7 +502,7 @@ __global__ void kernel_update_nodes(real indenter_x, real indenter_y)
                                 (idx_z >= (blocksZmin-1) && idx_z < (blocksZmin+2)) ||
                                 (idx_z > (blocksZmax-2) && idx_z <= (blocksZmax+1))
                                 )) velocity.setZero();
-
+*/
     // write the updated grid velocity back to memory
     for(int i=0;i<3;i++) gprms.grid_array[(1+i)*pitch + idx] = velocity[i];
 }
