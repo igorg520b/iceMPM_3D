@@ -1,12 +1,12 @@
 {
-"OutputDirectory":"cm_output1",
-"InputRawPoints":"/media/s2/Archive1/MPM_2023_results/raw_points/500k.h5",
+"InputRawPoints":"/home/s2/Projects/block_2m.h5",
+"SetupType":0,   
 
-"ParticleViewSize":2.0,
-"InitialTimeStep":4.0e-5,
-"GridX":64,
-"GridY":27,
-"GridZ":56,
+"ParticleViewSize":1.0,
+"InitialTimeStep":2.0e-5,
+"GridX":128,
+"GridY":54,
+"GridZ":110,
 "GridXDimension":3.3,
 
 "YoungsModulus":5.0e8,
@@ -14,8 +14,7 @@
 "IceTensileStrength":10e6,
 "IceShearStrength":5e6,
 "DP_phi":70,
-"BlockOffsetX":20,
-"DP_threshold_p":1000,
+"DP_threshold_p":300,
 
 "SimulationEndTime":12,
 "PoissonsRatio":0.3,
@@ -25,5 +24,3 @@
 "IndVelocity":0.2,
 "IndDepth":0.101
 }
-
-

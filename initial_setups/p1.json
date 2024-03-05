@@ -1,11 +1,12 @@
 {
-"InputRawPoints":"/media/s2/Archive1/MPM_2023_results/raw_points/2m.h5",
+"OutputDirectory":"cm_output1",
+"InputRawPoints":"/media/s2/Archive1/MPM_2023_results/raw_points/500k.h5",
 
-"ParticleViewSize":1.0,
-"InitialTimeStep":2.0e-5,
-"GridX":128,
-"GridY":54,
-"GridZ":110,
+"ParticleViewSize":2.0,
+"InitialTimeStep":4.0e-5,
+"GridX":64,
+"GridY":27,
+"GridZ":56,
 "GridXDimension":3.3,
 
 "YoungsModulus":5.0e8,
@@ -13,7 +14,7 @@
 "IceTensileStrength":10e6,
 "IceShearStrength":5e6,
 "DP_phi":70,
-"BlockOffsetX":20,
+"BlockOffsetX":5,
 "DP_threshold_p":1000,
 
 "SimulationEndTime":12,
@@ -24,3 +25,5 @@
 "IndVelocity":0.2,
 "IndDepth":0.101
 }
+
+
