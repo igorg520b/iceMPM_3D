@@ -11,12 +11,10 @@ void icy::SimParams3D::Reset()
 
     InitialTimeStep = 3.e-5;
     YoungsModulus = 5.e8;
-    PointsWanted = 500'000;
     GridX = 256;
     GridY = 110;
     GridZ = 140;
     ParticleViewSize = 2.5;
-    SphereViewSize = 0.01;
     GridXDimension = 3.33;
 
     SimulationEndTime = 12;
@@ -34,7 +32,8 @@ void icy::SimParams3D::Reset()
 
     IceCompressiveStrength = 100e6;
     IceTensileStrength = 10e6;
-    IceShearStrength = 4.5e6;
+    IceShearStrength = 5e6;
+    GrainVariability = 0.05;
 
     DP_tan_phi = std::tan(65*pi/180.);
     DP_threshold_p = 1000;
@@ -77,14 +76,12 @@ std::string icy::SimParams3D::ParseFile(std::string fileName)
 
     if(doc.HasMember("InitialTimeStep")) InitialTimeStep = doc["InitialTimeStep"].GetDouble();
     if(doc.HasMember("YoungsModulus")) YoungsModulus = doc["YoungsModulus"].GetDouble();
-    if(doc.HasMember("PointsWanted")) PointsWanted = doc["PointsWanted"].GetDouble();
     if(doc.HasMember("GridX")) GridX = doc["GridX"].GetInt();
     if(doc.HasMember("GridY")) GridY = doc["GridY"].GetInt();
     if(doc.HasMember("GridZ")) GridZ = doc["GridZ"].GetInt();
     if(doc.HasMember("GridXDimension")) GridXDimension = doc["GridXDimension"].GetDouble();
 
     if(doc.HasMember("ParticleViewSize")) ParticleViewSize = doc["ParticleViewSize"].GetDouble();
-    if(doc.HasMember("SphereViewSize")) SphereViewSize = doc["SphereViewSize"].GetDouble();
     if(doc.HasMember("SimulationEndTime")) SimulationEndTime = doc["SimulationEndTime"].GetDouble();
     if(doc.HasMember("PoissonsRatio")) PoissonsRatio = doc["PoissonsRatio"].GetDouble();
     if(doc.HasMember("Gravity")) Gravity = doc["Gravity"].GetDouble();
@@ -96,6 +93,7 @@ std::string icy::SimParams3D::ParseFile(std::string fileName)
     if(doc.HasMember("IceCompressiveStrength")) IceCompressiveStrength = doc["IceCompressiveStrength"].GetDouble();
     if(doc.HasMember("IceTensileStrength")) IceTensileStrength = doc["IceTensileStrength"].GetDouble();
     if(doc.HasMember("IceShearStrength")) IceShearStrength = doc["IceShearStrength"].GetDouble();
+    if(doc.HasMember("GrainVariability")) GrainVariability = doc["GrainVariability"].GetDouble();
 
     if(doc.HasMember("DP_phi")) DP_tan_phi = std::tan(doc["DP_phi"].GetDouble()*pi/180);
     if(doc.HasMember("DP_threshold_p")) DP_threshold_p = doc["DP_threshold_p"].GetDouble();
@@ -143,7 +141,14 @@ void icy::SimParams3D::ComputeHelperVariables()
     GridTotal = GridX*GridY*GridZ;
 
     // indeter force recording
-    n_indenter_subdivisions_angular = (int)(pi*IndDiameter / cellsize);
+    if(SetupType == 0)
+    {
+        n_indenter_subdivisions_angular = (int)(pi*IndDiameter / cellsize);
+    }
+    else if(SetupType == 1)
+    {
+        n_indenter_subdivisions_angular = (int)GridX;
+    }
     indenter_array_size  = 3*n_indenter_subdivisions_angular*GridZ;
 }
 

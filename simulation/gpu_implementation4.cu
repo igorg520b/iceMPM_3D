@@ -285,19 +285,29 @@ __forceinline__ __device__ void Wolper_Drucker_Prager(icy::Point3D &p)
             real s_hat_n_1_norm = q_n_1/coeff1;
             Matrix3r B_hat_E_new = (s_hat_n_1_norm*cbrt(Je_tr_sq)/mu)*s_hat_tr.normalized() + Matrix3r::Identity()*(SigmaSquared.trace()/d);
 
-            Eigen::Array<real,3,1> md = B_hat_E_new.diagonal().array().sqrt();
-
-/*            Matrix3r Sigma_new;
-            Sigma_new << sqrt(B_hat_E_new(0,0)), 0, 0,
-                0, sqrt(B_hat_E_new(1,1)), 0,
-                0, 0, sqrt(B_hat_E_new(2,2));
-            p.Fe = U*Sigma_new*V.transpose();
-*/
-            p.Fe = U * (md.matrix().asDiagonal()) * V.transpose();
+            Eigen::Array<real,3,1> Sigma_new = B_hat_E_new.diagonal().array().sqrt();
+            p.Fe = U * Sigma_new.matrix().asDiagonal() * V.transpose();
             p.q = 3;
         }
     }
 }
+
+__forceinline__ __device__ void GetQPP0ForGrain(const int grain, real &p0, real &beta, real &mSq)
+{
+    // introduce parameter variability depending on the grain number
+    real var1 = 1.0 + gprms.GrainVariability*0.05*(-10 + grain%21);
+    real var2 = 1.0 + gprms.GrainVariability*0.05*(-10 + (grain+7)%21);
+    real var3 = 1.0 + gprms.GrainVariability*0.05*(-10 + (grain+14)%21);
+
+    p0 = gprms.IceCompressiveStrength * var1;
+    real p = gprms.IceTensileStrength * var2;
+    real q = gprms.IceShearStrength * var3;
+
+    beta = p / p0;
+    real NACC_M = (2*q*sqrt(1+2*beta))/(p0*(1+beta));
+    mSq = NACC_M*NACC_M;
+}
+
 
 
 __forceinline__ __device__ void CheckIfPointIsInsideFailureSurface(icy::Point3D &p)
@@ -305,10 +315,11 @@ __forceinline__ __device__ void CheckIfPointIsInsideFailureSurface(icy::Point3D 
     const Matrix3r &gradV = p.Bp;
     const real &mu = gprms.mu;
     const real &kappa = gprms.kappa;
-    const real &beta = gprms.NACC_beta;
     const real &dt = gprms.InitialTimeStep;
-    const real &p0 = gprms.IceCompressiveStrength;
-    const real &M_sq = gprms.NACC_Msq;
+
+    real beta, M_sq, p0;
+    GetQPP0ForGrain(p.grain, p0, beta, M_sq);
+
     constexpr real d = 3; // dimension
 
     Matrix3r FeTr = (Matrix3r::Identity() + dt*gradV) * p.Fe;
@@ -472,7 +483,16 @@ __global__ void kernel_update_nodes(real indenter_x, real indenter_y)
     {
         // flat indenter for vertical indentation
         real gnpos_y = idx_y*cellsize;
-        if(gnpos_y > gprms.indenter_y && velocity[1]>-gprms.IndVelocity) velocity[1] = -gprms.IndVelocity;
+        if(gnpos_y > gprms.indenter_y && velocity[1]>-gprms.IndVelocity)
+        {
+            Vector3r prev_velocity = velocity;
+            velocity[1] = -gprms.IndVelocity;
+            Vector3r force = (prev_velocity-velocity)*mass/dt;
+            int index_x = min(max(idx_x,0),gridX-1);
+            int index_z = min(max(idx_z,0),gridZ-1);
+            int index = index_z + index_x*gridZ;
+            for(int i=0;i<3;i++) atomicAdd(&gprms.indenter_force_accumulator[i+3*index], force[i]);
+        }
 
     }
 
@@ -529,12 +549,13 @@ __global__ void kernel_g2p()
     for(int i=0; i<3; i++)
     {
         p.pos[i] = buffer[pt_idx + pitch_pts*(icy::SimParams3D::posx+i)];
-        for(int j=0; j<3; j++)
-            p.Fe(i,j) = buffer[pt_idx + pitch_pts*(icy::SimParams3D::Fe00 + i*3 + j)];
+        for(int j=0; j<3; j++) p.Fe(i,j) = buffer[pt_idx + pitch_pts*(icy::SimParams3D::Fe00 + i*3 + j)];
     }
 
     char* ptr_intact = (char*)(&buffer[pitch_pts*icy::SimParams3D::idx_intact]);
     p.q = ptr_intact[pt_idx];
+    short* ptr_grain = (short*)(&ptr_intact[pitch_pts]);
+    p.grain = ptr_grain[pt_idx];
     p.Jp_inv = buffer[pt_idx + pitch_pts*icy::SimParams3D::idx_Jp_inv];
 
     constexpr real offset = 0.5;  // 0 for cubic; 0.5 for quadratic

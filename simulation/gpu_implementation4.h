@@ -18,6 +18,7 @@ __forceinline__ __device__ void Wolper_Drucker_Prager(icy::Point3D &p);
 __forceinline__ __device__ void CheckIfPointIsInsideFailureSurface(icy::Point3D &p);
 __forceinline__ __device__ Matrix3r KirchhoffStress_Wolper(const Matrix3r &F);
 __forceinline__ __device__ Matrix3r dev(Matrix3r A);
+__forceinline__ __device__ void GetQPP0ForGrain(int grain, real &p0, real &beta, real &mSq);
 
 __forceinline__ __device__ void svd3x3(const Matrix3r &A, Matrix3r &U, Matrix3r &S, Matrix3r &V);
 __global__ void kernel_hello();

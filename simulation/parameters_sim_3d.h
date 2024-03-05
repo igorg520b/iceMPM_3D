@@ -45,13 +45,13 @@ public:
 
     real *grid_array;      // device-side grid data
     real *pts_array;
+    real *indenter_force_accumulator; // size is indenter_array_size
+    int indenter_array_size;
     size_t nPtsPitch, nGridPitch; // in number of elements(!), for coalesced access on the device
     int n_indenter_subdivisions_angular;
-    int indenter_array_size;
-    real *indenter_force_accumulator; // size is indenter_array_size
     int tpb_P2G, tpb_Upd, tpb_G2P;  // threads per block for each operation
 
-    int PointsWanted, nPts;
+    int nPts;   // number of points
     int GridX, GridY, GridZ, GridTotal;
     real GridXDimension;
 
@@ -63,6 +63,7 @@ public:
     real IceCompressiveStrength, IceTensileStrength, IceShearStrength;
     real NACC_beta, NACC_M, NACC_Msq;     // these are all computed
     real DP_tan_phi, DP_threshold_p;
+    real GrainVariability;
 
     real cellsize, cellsize_inv, Dp_inv;
 
@@ -70,7 +71,7 @@ public:
     real xmin, xmax, ymin, ymax, zmin, zmax;            // bounding box of the material
     int nxmin, nxmax, nymin, nymax, nzmin, nzmax;       // same, but nuber of grid cells
 
-    real ParticleVolume, ParticleMass, ParticleViewSize, SphereViewSize;
+    real ParticleVolume, ParticleMass, ParticleViewSize;
 
     int SimulationStep;
     real SimulationTime;

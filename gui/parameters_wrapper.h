@@ -58,11 +58,6 @@ class ParamsWrapper : public QObject
     double getParticleViewSize() {return prms->ParticleViewSize;}
     void setParticleViewSize(double val) {prms->ParticleViewSize=val;}
 
-    // SphereViewSize
-    Q_PROPERTY(double p_SphereViewSize READ getSphereViewSize WRITE setSphereViewSize NOTIFY propertyChanged)
-    double getSphereViewSize() {return prms->SphereViewSize;}
-    void setSphereViewSize(double val) {prms->SphereViewSize=val;}
-
     // indenter
     Q_PROPERTY(double IndDiameter READ getIndDiameter NOTIFY propertyChanged)
     double getIndDiameter() {return prms->IndDiameter;}
