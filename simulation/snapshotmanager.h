@@ -7,6 +7,8 @@
 #include <Eigen/Core>
 #include <H5Cpp.h>
 
+#include "parameters_sim_3d.h"
+
 namespace icy {class SnapshotManager; class Model3D;}
 
 
@@ -36,7 +38,7 @@ public:
         Eigen::Vector3f vel() {return Eigen::Vector3f(v[0],v[1],v[2]);}
     };
 
-    static void H5Raw_to_Paraview(std::string directory);
+//    static void H5Raw_to_Paraview(std::string directory);
 
 private:
     const std::string dir_vtp = "output_vtp";
@@ -50,8 +52,12 @@ private:
     void ExportPointsAsH5();
     void ExportPointsAsH5_Raw();
     void SaveParametersAsAttributes(H5::DataSet &dataset);
+    static void ReadParametersAsAttributes(icy::SimParams3D &prms, const H5::DataSet &dataset);
 
     void PopulateVisualPoint(VisualPoint &vp, int idx);
+
+    // functions that export data in bgeo / paraview formats
+    static void export_bgeo_f(int frame, std::vector<icy::SnapshotManager::VisualPoint> &current_frame);
 };
 
 #endif // SNAPSHOTWRITER_H

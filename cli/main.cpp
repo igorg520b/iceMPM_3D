@@ -28,20 +28,6 @@ int main(int argc, char** argv)
     cxxopts::Options options("Ice MPM 3D", "CLI version of MPM 3D simulation");
 
     options.add_options()
-        // point generation
-        ("g,generate", "Make a set of N points for the simulation starting input", cxxopts::value<int>()->default_value("10000000"))
-        ("o,output", "Output file name", cxxopts::value<std::string>()->default_value("raw_10m.h5"))
-        ("x,bx", "Length of the block", cxxopts::value<float>()->default_value("2.5"))
-        ("y,by", "Height of the block", cxxopts::value<float>()->default_value("1.0"))
-        ("z,bz", "Width of the block", cxxopts::value<float>()->default_value("1.5"))
-
-        ("cone", "Generate cone")
-        ("diameter", "Diameter of the cone", cxxopts::value<float>()->default_value("0.2688"))
-        ("top", "Diameter at the top of the cone", cxxopts::value<float>()->default_value("0.0254"))
-        ("angle", "Taper angle of the cone", cxxopts::value<float>()->default_value("21"))
-        ("height", "Total height of the sample", cxxopts::value<float>()->default_value("0.1"))
-
-
         // simulation output (.H5) conversion to BGEO and/or VTP
         ("c,convert", "Directory where iterative h5 fies are saved", cxxopts::value<std::string>())
         ("p,convert-parallel", "Directory where raw h5 fies are saved", cxxopts::value<std::string>())

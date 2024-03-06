@@ -43,11 +43,9 @@ void convert_to_bgeo_vtp(std::string directory, bool export_vtp, bool export_bge
     std::vector<icy::SnapshotManager::VisualPoint> current_frame, saved_frame;
     std::vector<double> indenter_force_buffer;
     std::vector<Vector3r> indenter_force_history;
-//    icy::SimParams3D prms;
+    icy::SimParams3D prms;
+    Vector3r indenter_force_elem;
 
-    int n_indenter_subdivisions_angular, GridZ, nPts, UpdateEveryNthStep, indenter_array_size;
-    double indenter_x, indenter_y;
-    double cellsize, IceBlockDimZ, IndDiameter, InitialTimeStep;
 
     int frame = 1;
     std::string filePath;
@@ -61,52 +59,15 @@ void convert_to_bgeo_vtp(std::string directory, bool export_vtp, bool export_bge
 
         H5::H5File file(filePath, H5F_ACC_RDONLY);
 
-//        H5::DataSet dataset_params = file.openDataSet("Params");
-//        hsize_t dims_params = 0;
-//        dataset_params.getSpace().getSimpleExtentDims(&dims_params, NULL);
-//        if(dims_params != sizeof(icy::SimParams3D)) throw std::runtime_error("SimParams3D size mismatch");
-//        dataset_params.read(&prms, H5::PredType::NATIVE_B8);
-
         // read indenter data
         spdlog::info("reading indenter data");
         H5::DataSet dataset_indenter = file.openDataSet("Indenter_Force");
 
-        // read some parameters that are saved as attributes on the indenter dataset
-        H5::Attribute att_indenter_x = dataset_indenter.openAttribute("indenter_x");
-        H5::Attribute att_indenter_y = dataset_indenter.openAttribute("indenter_y");
-        att_indenter_x.read(H5::PredType::NATIVE_DOUBLE, &indenter_x);
-        att_indenter_y.read(H5::PredType::NATIVE_DOUBLE, &indenter_y);
-
-        if(frame==1)
-        {
-            // some attributes are available only in the first frame
-            H5::Attribute att_nPts = dataset_indenter.openAttribute("nPts");
-            H5::Attribute att_UpdateEveryNthStep = dataset_indenter.openAttribute("UpdateEveryNthStep");
-            H5::Attribute att_n_indenter_subdivisions_angular = dataset_indenter.openAttribute("n_indenter_subdivisions_angular");
-            H5::Attribute att_GridZ = dataset_indenter.openAttribute("GridZ");
-
-            att_GridZ.read(H5::PredType::NATIVE_INT, &GridZ);
-            att_nPts.read(H5::PredType::NATIVE_INT, &nPts);
-            att_UpdateEveryNthStep.read(H5::PredType::NATIVE_INT, &UpdateEveryNthStep);
-            att_n_indenter_subdivisions_angular.read(H5::PredType::NATIVE_INT, &n_indenter_subdivisions_angular);
-
-            H5::Attribute att_cellsize = dataset_indenter.openAttribute("cellsize");
-            H5::Attribute att_IceBlockDimZ = dataset_indenter.openAttribute("IceBlockDimZ");
-            H5::Attribute att_IndDiameter = dataset_indenter.openAttribute("IndDiameter");
-            H5::Attribute att_InitialTimeStep = dataset_indenter.openAttribute("InitialTimeStep");
-
-            att_cellsize.read(H5::PredType::NATIVE_DOUBLE, &cellsize);
-            att_IceBlockDimZ.read(H5::PredType::NATIVE_DOUBLE, &IceBlockDimZ);
-            att_IndDiameter.read(H5::PredType::NATIVE_DOUBLE, &IndDiameter);
-            att_InitialTimeStep.read(H5::PredType::NATIVE_DOUBLE, &InitialTimeStep);
-
-            indenter_array_size = 3*GridZ*n_indenter_subdivisions_angular;
-        }
+        icy::SnapshotManager::ReadParametersAsAttributes(prms, dataset_indenter);
 
         indenter_force_buffer.resize(indenter_array_size);
         dataset_indenter.read(indenter_force_buffer.data(), H5::PredType::NATIVE_DOUBLE);
 
-        Vector3r indenter_force_elem;
         indenter_force_elem.setZero();
         for(int i=0; i<indenter_array_size; i++) indenter_force_elem[i%3] += indenter_force_buffer[i];
         indenter_force_history.push_back(indenter_force_elem);
@@ -129,11 +90,12 @@ void convert_to_bgeo_vtp(std::string directory, bool export_vtp, bool export_bge
             else
             {
                 // advance "current_frame" one step forward
-                for(int i=0; i<nPts;i++)
+#pragma omp parallel for
+                for(int i=0; i<prms.nPts;i++)
                 {
                     icy::SnapshotManager::VisualPoint &vp = current_frame[i];
                     Eigen::Map<Eigen::Vector3f> updated_pos(vp.p);
-                    updated_pos = vp.pos() + vp.vel()*InitialTimeStep;
+                    updated_pos = vp.pos() + vp.vel()*prms.InitialTimeStep;
                 }
 
                 // update select points

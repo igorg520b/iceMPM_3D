@@ -235,6 +235,53 @@ void icy::SnapshotManager::AllocateMemoryForFrames()
 }
 
 
+
+void icy::SnapshotManager::ReadParametersAsAttributes(icy::SimParams3D &prms, const H5::DataSet &dataset)
+{
+    H5::Attribute att_indenter_x = dataset.openAttribute("indenter_x");
+    H5::Attribute att_indenter_y = dataset.openAttribute("indenter_y");
+    H5::Attribute att_SimulationTime = dataset.openAttribute("SimulationTime");
+    H5::Attribute att_GridX = dataset.openAttribute("GridX");
+    H5::Attribute att_GridY = dataset.openAttribute("GridY");
+    H5::Attribute att_GridZ = dataset.openAttribute("GridZ");
+    H5::Attribute att_nPts = dataset.openAttribute("nPts");
+    H5::Attribute att_UpdateEveryNthStep = dataset.openAttribute("UpdateEveryNthStep");
+    H5::Attribute att_n_indenter_subdivisions_angular = dataset.openAttribute("n_indenter_subdivisions_angular");
+    H5::Attribute att_cellsize = dataset.openAttribute("cellsize");
+    H5::Attribute att_IndDiameter = dataset.openAttribute("IndDiameter");
+    H5::Attribute att_InitialTimeStep = dataset.openAttribute("InitialTimeStep");
+    H5::Attribute att_SetupType = dataset.openAttribute("SetupType");
+    H5::Attribute att_IceBlockCoords = dataset.openAttribute("IceBlockCoords");
+
+    att_indenter_x.read(H5::PredType::NATIVE_DOUBLE, &prms.indenter_x);
+    att_indenter_y.read(H5::PredType::NATIVE_DOUBLE, &prms.indenter_y);
+    att_SimulationTime.read(H5::PredType::NATIVE_DOUBLE, &prms.SimulationTime);
+    att_GridX.read(H5::PredType::NATIVE_INT, &prms.GridX);
+    att_GridY.read(H5::PredType::NATIVE_INT, &prms.GridY);
+    att_GridZ.read(H5::PredType::NATIVE_INT, &prms.GridZ);
+    att_nPts.read(H5::PredType::NATIVE_INT, &prms.nPts);
+    att_UpdateEveryNthStep.read(H5::PredType::NATIVE_INT, &prms.UpdateEveryNthStep);
+    att_n_indenter_subdivisions_angular.read(H5::PredType::NATIVE_INT, &prms.n_indenter_subdivisions_angular);
+    att_cellsize.read(H5::PredType::NATIVE_DOUBLE, &prms.cellsize);
+    att_IndDiameter.read(H5::PredType::NATIVE_DOUBLE, &prms.IndDiameter);
+    att_InitialTimeStep.read(H5::PredType::NATIVE_DOUBLE, &prms.InitialTimeStep);
+    att_SetupType.read(H5::PredType::NATIVE_INT, &prms.SetupType);
+
+
+    prms.indenter_array_size = 3*prms.GridZ*prms.n_indenter_subdivisions_angular;
+
+    double buff[6];
+    att_IceBlockCoords.read(H5::PredType::NATIVE_DOUBLE, buff);
+    prms.xmin = buff[0];
+    prms.xmax = buff[1];
+    prms.ymin = buff[2];
+    prms.ymax = buff[3];
+    prms.zmin = buff[4];
+    prms.zmax = buff[5];
+}
+
+
+
 void icy::SnapshotManager::SaveParametersAsAttributes(H5::DataSet &dataset)
 {
     hsize_t att_dim = 1;
@@ -242,6 +289,8 @@ void icy::SnapshotManager::SaveParametersAsAttributes(H5::DataSet &dataset)
     H5::Attribute att_indenter_x = dataset.createAttribute("indenter_x", H5::PredType::NATIVE_DOUBLE, att_dspace);
     H5::Attribute att_indenter_y = dataset.createAttribute("indenter_y", H5::PredType::NATIVE_DOUBLE, att_dspace);
     H5::Attribute att_SimulationTime = dataset.createAttribute("SimulationTime", H5::PredType::NATIVE_DOUBLE, att_dspace);
+    H5::Attribute att_GridX = dataset.createAttribute("GridX", H5::PredType::NATIVE_INT, att_dspace);
+    H5::Attribute att_GridY = dataset.createAttribute("GridY", H5::PredType::NATIVE_INT, att_dspace);
     H5::Attribute att_GridZ = dataset.createAttribute("GridZ", H5::PredType::NATIVE_INT, att_dspace);
     H5::Attribute att_nPts = dataset.createAttribute("nPts", H5::PredType::NATIVE_INT, att_dspace);
     H5::Attribute att_UpdateEveryNthStep = dataset.createAttribute("UpdateEveryNthStep", H5::PredType::NATIVE_INT, att_dspace);
@@ -254,6 +303,8 @@ void icy::SnapshotManager::SaveParametersAsAttributes(H5::DataSet &dataset)
     att_indenter_x.write(H5::PredType::NATIVE_DOUBLE, &model->prms.indenter_x);
     att_indenter_y.write(H5::PredType::NATIVE_DOUBLE, &model->prms.indenter_y);
     att_SimulationTime.write(H5::PredType::NATIVE_DOUBLE, &model->prms.SimulationTime);
+    att_GridX.write(H5::PredType::NATIVE_INT, &model->prms.GridX);
+    att_GridY.write(H5::PredType::NATIVE_INT, &model->prms.GridY);
     att_GridZ.write(H5::PredType::NATIVE_INT, &model->prms.GridZ);
     att_nPts.write(H5::PredType::NATIVE_INT, &model->prms.nPts);
     att_UpdateEveryNthStep.write(H5::PredType::NATIVE_INT, &model->prms.UpdateEveryNthStep);
@@ -438,7 +489,7 @@ void icy::SnapshotManager::ExportPointsAsH5_Raw()
 
     file.close();
 }
-
+/*
 void icy::SnapshotManager::H5Raw_to_Paraview(std::string path)
 {
     int lastidx = -1;
@@ -664,3 +715,4 @@ void icy::SnapshotManager::H5Raw_to_Paraview(std::string path)
     spdlog::info("success");
 }
 
+*/
