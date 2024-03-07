@@ -99,6 +99,7 @@ void convert_to_bgeo_vtp(std::string directory, bool export_vtp, bool export_bge
                 }
 
                 // update select points
+#pragma omp parallel for
                 for(int i=0; i<saved_frame.size(); i++)
                 {
                     icy::SnapshotManager::VisualPoint &vp = saved_frame[i];
@@ -110,9 +111,7 @@ void convert_to_bgeo_vtp(std::string directory, bool export_vtp, bool export_bge
         file.close();
 
         if(export_bgeo) export_bgeo_f(frame, current_frame);
-
         if(export_vtp) export_vtu_f(frame, current_frame);
-
         if(export_indenter) export_indenter_f(frame, current_frame, indenter_force_buffer,
                               indenter_x, indenter_y, GridZ, cellsize, IndDiameter, IceBlockDimZ, n_indenter_subdivisions_angular);
 

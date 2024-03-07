@@ -716,3 +716,8 @@ void icy::SnapshotManager::H5Raw_to_Paraview(std::string path)
 }
 
 */
+
+void icy::SnapshotManager::export_bgeo_f(int frame, std::vector<icy::SnapshotManager::VisualPoint> &current_frame)
+{
+
+}
