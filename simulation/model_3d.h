@@ -43,12 +43,7 @@ public:
     std::string outputDirectory;
 
 private:
-    void ResetGrid();
-    void P2G();
-    void UpdateNodes();
-    void G2P();
     void UpdateIndenterPosition(real simulationtime);
-
     bool abortRequested;
 };
 
