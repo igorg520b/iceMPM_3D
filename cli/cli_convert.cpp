@@ -38,6 +38,7 @@ void export_vtu_f(int frame, std::vector<icy::SnapshotManager::VisualPoint> &cur
 
 void convert_to_bgeo_vtp(std::string directory, bool export_vtp, bool export_bgeo, bool export_indenter)
 {
+    /*
     spdlog::info("convert to vtp {}, to bgeo {}, directory {}", export_vtp, export_bgeo, directory);
 
     std::vector<icy::SnapshotManager::VisualPoint> current_frame, saved_frame;
@@ -133,6 +134,7 @@ void convert_to_bgeo_vtp(std::string directory, bool export_vtp, bool export_bge
         ofs << t << ',' << v.norm() << ',' << v[0] << ',' << v[1] << '\n';
     }
     ofs.close();
+*/
 }
 
 

@@ -56,9 +56,9 @@ int main(int argc, char** argv)
     else if(option_parse_result.count("convert-parallel"))
     {
         // convert to BGEO/VTP
-        std::string input_directory = option_parse_result["convert-parallel"].as<std::string>();
-        spdlog::info("converting in parallel; {}", input_directory);
-        icy::SnapshotManager::H5Raw_to_Paraview(input_directory);
+//        std::string input_directory = option_parse_result["convert-parallel"].as<std::string>();
+//        spdlog::info("converting in parallel; {}", input_directory);
+//        icy::SnapshotManager::H5Raw_to_Paraview(input_directory);
     }
     else if(option_parse_result.count("simulate"))
     {
